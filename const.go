@@ -18,6 +18,13 @@ const (
 	WS_TRADE
 )
 
+var (
+	AUTH_REQUIRED_TYPES = map[WSType]bool{
+		WS_PRIVATE: true,
+		WS_TRADE:   true,
+	}
+)
+
 const (
 	WS_URL_TRADE   = "wss://stream.bybit.com/realtime"
 	WS_URL_PRIVATE = "wss://stream.bybit.com/v5/private"
@@ -25,6 +32,7 @@ const (
 	WS_URL_LINEAR  = "wss://stream.bybit.com/v5/public/linear"
 	WS_URL_INVERSE = "wss://stream.bybit.com/v5/public/inverse"
 )
+
 const (
 	BASE_URL    = "https://api.bybit.com"
 	TESTNET_URL = "https://api-testnet.bybit.com"
@@ -52,4 +60,12 @@ const (
 
 	TESTNET_PRIVATE_WS = TESTNET_BASE_URL + "/" + API_VERSION + "/private"
 	TESTNET_TRADE_WS   = TESTNET_BASE_URL + "/" + API_VERSION + "/trade"
+)
+
+const (
+	timestampKey  = "X-BAPI-TIMESTAMP"
+	signatureKey  = "X-BAPI-SIGN"
+	apiRequestKey = "X-BAPI-API-KEY"
+	recvWindowKey = "X-BAPI-RECV-WINDOW"
+	signTypeKey   = "X-BAPI-SIGN-TYPE"
 )

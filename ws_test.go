@@ -3,6 +3,9 @@ package qant_api_bybit
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/goccy/go-json"
 )
 
 type WSResponse struct {
@@ -19,6 +22,18 @@ type PongResponse struct {
 	ConnId  string `json:"conn_id"`
 	ReqId   string `json:"req_id,omitempty"`
 	Op      string `json:"op"`
+}
+
+func getApi() *BybitApi {
+	api := NewBybitApi("QU0G8RSs5aSsoGVir2", "IHmT3wcDaI7TBo0WlJaPlJj8JTMtdb5KQrZR")
+	api.ConfigureWsUrls(
+		TESTNET_PRIVATE_WS,
+		TESTNET_SPOT_WS,
+		TESTNET_LINEAR_WS,
+		TESTNET_INVERSE_WS,
+		TESTNET_TRADE_WS,
+	)
+	return api
 }
 
 func TestGetReqId(t *testing.T) {
@@ -46,7 +61,7 @@ func TestWsManagerSubscribe(t *testing.T) {
 	api := getApi()
 	api.ConfigureTestNetUrls()
 	api.Spot.Subscribe("orderbook.1.BTCUSDT")
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1000; i++ {
 		fmt.Println(<-api.Spot.DataCh)
 	}
 	api.Spot.Unsubscribe("orderbook.1.BTCUSDT")
@@ -95,10 +110,14 @@ func TestWsManagerTickerSubscribe(t *testing.T) {
 func TestWsConnectionPingPong(t *testing.T) {
 	api := getApi()
 	api.ConfigureTestNetUrls()
-	api.Spot.Subscribe("orderbook.1.BTCUSDT")
-	for i := 0; i < 10; i++ {
-		data := <-api.Spot.DataCh
-		fmt.Println(data)
+	api.Private.Subscribe("position")
+	for i := 0; i < 5; i++ {
+		data := <-api.Private.DataCh
+		var pm interface{}
+		if err := json.Unmarshal(data, &pm); err != nil {
+			t.Errorf("Error: %v", err)
+		}
+		PrettyPrint(pm)
 	}
 }
 
@@ -134,4 +153,41 @@ func TestExecutionWs(t *testing.T) {
 	api.Private.Subscribe("execution")
 	data := <-api.Private.DataCh
 	fmt.Println(data)
+}
+
+func TestTradeAuthWs(t *testing.T) {
+	api := getApi()
+	api.ConfigureTestNetUrls()
+	api.Trade.Subscribe("trade")
+	data := <-api.Trade.DataCh
+	fmt.Println(data)
+}
+
+func TestSendRequest(t *testing.T) {
+	api := getApi()
+	api.ConfigureTestNetUrls()
+	header := map[string]interface{}{
+		"X-BAPI-TIMESTAMP": time.Now().UnixNano() / 1000000,
+	}
+
+	params := map[string]interface{}{
+		"category":  "linear",
+		"orderType": "Limit",
+		"price":     "60000",
+		"qty":       "0.001",
+		"side":      "Buy",
+		"symbol":    "BTCUSDT",
+	}
+
+	if err := api.Trade.sendRequest("order.create", params, header); err != nil {
+		t.Fatalf("Error: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		data := <-api.Trade.DataCh
+		var pm interface{}
+		if err := json.Unmarshal(data, &pm); err != nil {
+			t.Errorf("Error: %v", err)
+		}
+		PrettyPrint(pm)
+	}
 }

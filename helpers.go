@@ -6,6 +6,8 @@ import (
 	"reflect"
 )
 
+func ptr[T any](value T) (pointer *T) { return &value }
+
 func PrettyPrint(v interface{}) {
 	t := reflect.TypeOf(v)
 	if t.Kind() == reflect.Ptr {

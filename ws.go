@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/dustinxie/lockfree"
+	"github.com/google/uuid"
 	gws "github.com/gorilla/websocket"
 )
 
@@ -70,9 +71,8 @@ type WSManager struct {
 	isConnected    atomic.Bool
 	reconnectDelay time.Duration
 
-	messageBuffer chan []byte
-	done          chan struct{}
-	requestIds    lockfree.HashMap
+	done       chan struct{}
+	requestIds lockfree.HashMap
 }
 
 // getReqId generates a request id for a given topic
@@ -93,10 +93,9 @@ func newWSManager(api *BybitApi, wsType WSType, url string) *WSManager {
 		wsType:         wsType,
 		subscriptions:  make(map[string]chan []byte),
 		reconnectDelay: wsInitialReconnectDelay,
-		messageBuffer:  make(chan []byte, 1000),
 		done:           make(chan struct{}),
 		requestIds:     lockfree.NewHashMap(),
-		DataCh:         make(chan []byte, 1000),
+		DataCh:         make(chan []byte, 5000),
 		url:            url,
 	}
 
@@ -109,7 +108,7 @@ func (m *WSManager) EnsureConnected(ctx context.Context) error {
 		if err := m.Connect(ctx); err != nil {
 			return fmt.Errorf("failed to establish connection: %w", err)
 		}
-		if m.wsType == WS_PRIVATE {
+		if _, exists := AUTH_REQUIRED_TYPES[m.wsType]; exists {
 			if m.conn.apiKey == "" || m.conn.apiSecret == "" {
 				return fmt.Errorf("api key and secret required for private websocket")
 			}
@@ -167,6 +166,8 @@ func (m *WSManager) Connect(ctx context.Context) error {
 		lastPing:   time.Now(),
 		subscribed: make(map[string]struct{}),
 		writeMu:    sync.Mutex{},
+		apiKey:     m.api.ApiKey,
+		apiSecret:  m.api.ApiSecret,
 	}
 
 	m.conn.state.Store(int32(StatusConnected))
@@ -182,17 +183,19 @@ func (m *WSManager) Connect(ctx context.Context) error {
 func (m *WSManager) pingLoop(ctx context.Context) {
 	ticker := time.NewTicker(wsPingInterval)
 
-	// payload - {"req_id": "ping_1", "op": "ping"}
-	payload := map[string]interface{}{
-		"req_id": m.getReqId("ping"),
-		"op":     "ping",
-	}
-
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-ticker.C:
+			if m.conn.GetWsState() == StatusDisconnected {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+			payload := map[string]interface{}{
+				"req_id": m.getReqId("ping"),
+				"op":     "ping",
+			}
 			if err := m.conn.WriteJSONThreadSafe(payload); err != nil {
 				m.conn.SetState(StatusDisconnected)
 				m.api.logger.Error("failed to send ping message: %v", err)
@@ -370,4 +373,35 @@ func (m *WSManager) GetSubscribedTopics() []string {
 		topics = append(topics, topic)
 	}
 	return topics
+}
+
+func (m *WSManager) sendRequest(operation string, request interface{}, headers map[string]interface{}) error {
+	if err := m.EnsureConnected(context.Background()); err != nil {
+		return err
+	}
+
+	reqId := uuid.New().String()
+	message := map[string]interface{}{
+
+		"reqId":  reqId,
+		"header": headers,
+		"op":     operation,
+		"args":   []interface{}{request},
+	}
+	PrettyPrint(message)
+
+	return m.conn.WriteJSONThreadSafe(message)
+}
+
+func (m *WSManager) PlaceOrder(request PlaceOrderParams) error {
+	return m.sendRequest("order.create", request, nil)
+}
+
+// TODO: replace with CancelOrderParams
+func (m *WSManager) CancelOrder(request PlaceOrderParams) error {
+	return m.sendRequest("order.amend", request, nil)
+}
+
+func (m *WSManager) CancelAllOrders(request AmendOrderParams) error {
+	return m.sendRequest("order.cancel", request, nil)
 }
