@@ -4,6 +4,8 @@
 package qant_api_bybit
 
 import (
+	pp "github.com/wwnbb/pprint"
+	"github.com/wwnbb/ptr"
 	"os"
 	"testing"
 	"time"
@@ -26,7 +28,7 @@ func TestGetServerTime(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	PrettyPrint(r)
+	pp.PrettyPrint(r)
 }
 
 func TestGetOrderRT(t *testing.T) {
@@ -45,7 +47,7 @@ func TestGetOrderRT(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	PrettyPrint(r)
+	pp.PrettyPrint(r)
 }
 
 func TestGetKline(t *testing.T) {
@@ -70,7 +72,7 @@ func TestGetKline(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	PrettyPrint(r)
+	pp.PrettyPrint(r)
 }
 
 func TestGetMarkPriceKline(t *testing.T) {
@@ -95,7 +97,7 @@ func TestGetMarkPriceKline(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	PrettyPrint(r)
+	pp.PrettyPrint(r)
 }
 
 func TestGetIndexPriceKline(t *testing.T) {
@@ -118,7 +120,7 @@ func TestGetIndexPriceKline(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	PrettyPrint(r)
+	pp.PrettyPrint(r)
 }
 
 func GetDefaultLimit(category string) int {
@@ -188,7 +190,7 @@ func TestGetOrderbook(t *testing.T) {
 		}
 	}
 
-	PrettyPrint(resp)
+	pp.PrettyPrint(resp)
 }
 
 /*
@@ -201,8 +203,6 @@ func TestPlaceOrder(t *testing.T) {
 	// 2. Place a market order
 	api := GetApi()
 
-	marketUnit := QuoteCoin
-
 	testCases := []struct {
 		name    string
 		params  PlaceOrderParams
@@ -214,10 +214,10 @@ func TestPlaceOrder(t *testing.T) {
 				Category:   "linear",
 				Symbol:     "BTCUSDT",
 				Qty:        "0.001",
-				Price:      ptr("50000"),
+				Price:      ptr.Ptr("50000"),
 				OrderType:  "Limit",
 				Side:       "Buy",
-				MarketUnit: &marketUnit,
+				MarketUnit: ptr.Ptr(QuoteCoin),
 			},
 		},
 		{
@@ -226,7 +226,7 @@ func TestPlaceOrder(t *testing.T) {
 				Category:   "linear",
 				Symbol:     "BTCUSDT",
 				Qty:        "0.001",
-				MarketUnit: &marketUnit,
+				MarketUnit: ptr.Ptr(QuoteCoin),
 				OrderType:  "Market",
 				Side:       "Buy",
 			},
@@ -243,10 +243,54 @@ func TestPlaceOrder(t *testing.T) {
 				if resp.RetMsg != "OK" {
 					t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
 				}
-				PrettyPrint(resp)
+				pp.PrettyPrint(resp)
 			},
 		)
 	}
+}
+
+func TestPlaceAndCancelOrder(t *testing.T) {
+	// 1. Place a limit order
+	// 2. Cancel the order we just placed
+
+	api := GetApi()
+
+	placeParams := PlaceOrderParams{
+		Category:  "linear",
+		Symbol:    "BTCUSDT",
+		Side:      "Buy",
+		OrderType: "Limit",
+		Qty:       "0.001",
+		Price:     ptr.Ptr("35000"),
+	}
+
+	placeResp, err := api.REST.PlaceOrder(placeParams)
+	if err != nil {
+		t.Fatalf("Failed to place order: %v", err)
+	}
+
+	if placeResp.RetMsg != "OK" {
+		t.Errorf("Error placing order: %s", placeResp.RetMsg)
+	}
+
+	pp.PrettyPrint(placeResp)
+
+	cancelParams := CancelOrderParams{
+		Category: "linear",
+		Symbol:   "BTCUSDT",
+		OrderId:  &placeResp.Result.OrderId,
+	}
+
+	cancelResp, err := api.REST.CancelOrder(cancelParams)
+	if err != nil {
+		t.Fatalf("Failed to cancel order: %v", err)
+	}
+
+	if cancelResp.RetMsg != "OK" {
+		t.Errorf("Error canceling order: %s", cancelResp.RetMsg)
+	}
+
+	pp.PrettyPrint(cancelResp)
 }
 
 func TestGetInstrumentsInfo(t *testing.T) {
@@ -317,7 +361,21 @@ func TestGetInstrumentsInfo(t *testing.T) {
 				}
 
 			}
-			PrettyPrint(resp)
+			pp.PrettyPrint(resp)
 		})
 	}
+}
+
+func TestGetWalletBalance(t *testing.T) {
+	api := GetApi()
+	r, err := api.REST.GetWalletBalance(GetWalletBalanceParams{
+		AccountType: "UNIFIED",
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	if r.RetMsg != "OK" {
+		t.Errorf("Error: %s", r.RetMsg)
+	}
+	pp.PrettyPrint(r)
 }

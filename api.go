@@ -36,6 +36,7 @@ type BybitApi struct {
 	ApiKey    string
 	ApiSecret string
 	context   context.Context
+	timeout   time.Duration
 
 	BASE_REST_URL  string
 	WS_URL_PRIVATE string
@@ -101,6 +102,7 @@ func NewBybitApi(apiKey, apiSecret string) *BybitApi {
 		context:   context.Background(),
 		wsPool:    make(map[string]chan []byte),
 		logger:    BasicLogger("BybitApi"),
+		timeout:   10 * time.Second,
 
 		WS_URL_PRIVATE: TESTNET_PRIVATE_WS,
 		WS_URL_SPOT:    TESTNET_SPOT_WS,
@@ -116,9 +118,26 @@ func NewBybitApi(apiKey, apiSecret string) *BybitApi {
 	api.Trade = newWSManager(api, WS_TRADE, api.WS_URL_TRADE)
 	api.Private = newWSManager(api, WS_PRIVATE, api.WS_URL_PRIVATE)
 	api.REST = NewRESTManager(api, api.BASE_REST_URL)
+	api.ConfigureMainNetUrls()
 
 	return api
 
+}
+
+func (b *BybitApi) Disconnect() {
+	for _, m := range []*WSManager{
+		b.Spot,
+		b.Linear,
+		b.Inverse,
+		b.Trade,
+		b.Private,
+	} {
+		err := m.close()
+		if err != nil {
+			// TODO: return errors instead of logging out
+			b.logger.Error("Failed to disconnect: %v", err)
+		}
+	}
 }
 
 // GenSignature generates an HMAC SHA256 signature for API authentication using the provided parameters.
@@ -160,4 +179,18 @@ func genSignature[T StringOrInterface](
 	signature := hex.EncodeToString(hmac256.Sum(nil))
 
 	return signature, timestamp, nil
+}
+
+// SetTimeout sets a custom timeout for the API
+func SetTimeout(timeout time.Duration) func(*BybitApi) {
+	return func(api *BybitApi) {
+		api.timeout = timeout
+	}
+}
+
+// SetContext sets a custom context for the API
+func SetContext(ctx context.Context) func(*BybitApi) {
+	return func(api *BybitApi) {
+		api.context = ctx
+	}
 }

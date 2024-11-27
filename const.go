@@ -8,10 +8,10 @@ const (
 	StatusClosed // socket was permanently closed, exit all routines
 )
 
-type WSType int
+type WebSocketT int
 
 const (
-	WS_SPOT WSType = iota
+	WS_SPOT WebSocketT = iota
 	WS_LINEAR
 	WS_INVERSE
 	WS_PRIVATE
@@ -19,7 +19,7 @@ const (
 )
 
 var (
-	AUTH_REQUIRED_TYPES = map[WSType]bool{
+	AUTH_REQUIRED_TYPES = map[WebSocketT]bool{
 		WS_PRIVATE: true,
 		WS_TRADE:   true,
 	}
@@ -68,4 +68,51 @@ const (
 	apiRequestKey = "X-BAPI-API-KEY"
 	recvWindowKey = "X-BAPI-RECV-WINDOW"
 	signTypeKey   = "X-BAPI-SIGN-TYPE"
+)
+
+type OrderStatusT string
+
+const (
+	OrderStatusNew             OrderStatusT = "New"
+	OrderStatusPartiallyFilled OrderStatusT = "PartiallyFilled"
+	OrderStatusUntriggered     OrderStatusT = "Untriggered"
+
+	OrderStatusRejected                OrderStatusT = "Rejected"
+	OrderStatusPartiallyFilledCanceled OrderStatusT = "PartiallyFilledCanceled"
+	OrderStatusFilled                  OrderStatusT = "Filled"
+	OrderStatusCancelled               OrderStatusT = "Cancelled"
+	OrderStatusTriggered               OrderStatusT = "Triggered"
+	OrderStatusDeactivated             OrderStatusT = "Deactivated"
+)
+
+type OrderTypeT string
+
+const (
+	OrderTypeLimit   OrderTypeT = "Limit"
+	OrderTypeMarket  OrderTypeT = "Market"
+	OrderTypeUnknown OrderTypeT = "Unknown"
+)
+
+type TopicType string
+
+const (
+	// Order topics
+	TopicOrder        TopicType = "order"
+	TopicOrderSpot    TopicType = "order.spot"
+	TopicOrderLinear  TopicType = "order.linear"
+	TopicOrderInverse TopicType = "order.inverse"
+	TopicOrderOption  TopicType = "order.option"
+
+	// Position topics
+	TopicPosition        TopicType = "position"
+	TopicPositionSpot    TopicType = "position.spot"
+	TopicPositionLinear  TopicType = "position.linear"
+	TopicPositionInverse TopicType = "position.inverse"
+	TopicPositionOption  TopicType = "position.option"
+
+	// Wallet topics
+	TopicWallet        TopicType = "wallet"
+	TopicWalletSpot    TopicType = "wallet.spot"
+	TopicWalletLinear  TopicType = "wallet.linear"
+	TopicWalletInverse TopicType = "wallet.inverse"
 )

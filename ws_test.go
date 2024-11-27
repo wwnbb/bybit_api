@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/goccy/go-json"
+	pp "github.com/wwnbb/pprint"
 )
 
 type WSResponse struct {
@@ -113,11 +113,7 @@ func TestWsConnectionPingPong(t *testing.T) {
 	api.Private.Subscribe("position")
 	for i := 0; i < 5; i++ {
 		data := <-api.Private.DataCh
-		var pm interface{}
-		if err := json.Unmarshal(data, &pm); err != nil {
-			t.Errorf("Error: %v", err)
-		}
-		PrettyPrint(pm)
+		pp.PrettyPrint(data)
 	}
 }
 
@@ -129,9 +125,11 @@ func TestWsMultiConnection(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		select {
 		case data := <-api.Spot.DataCh:
-			fmt.Println(data)
+			fmt.Println("Spot")
+			pp.PrettyPrint(data)
 		case data := <-api.Linear.DataCh:
-			fmt.Println(data)
+			fmt.Println("Linear")
+			pp.PrettyPrint(data)
 		}
 
 	}
@@ -184,10 +182,18 @@ func TestSendRequest(t *testing.T) {
 	}
 	for i := 0; i < 2; i++ {
 		data := <-api.Trade.DataCh
-		var pm interface{}
-		if err := json.Unmarshal(data, &pm); err != nil {
-			t.Errorf("Error: %v", err)
-		}
-		PrettyPrint(pm)
+		pp.PrettyPrint(data.Data)
 	}
+}
+
+func TestWsDisconnect(t *testing.T) {
+	api := getApi()
+	api.ConfigureTestNetUrls()
+	api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	api.Linear.Subscribe("orderbook.1.BTCUSDT")
+	api.Disconnect()
+	if api.Spot.Conn.GetState() != StatusDisconnected && api.Linear.Conn.GetState() != StatusDisconnected {
+		t.Errorf("Error: spot connection not disconnected")
+	}
+
 }

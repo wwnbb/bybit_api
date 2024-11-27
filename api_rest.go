@@ -5,6 +5,7 @@ package qant_api_bybit
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,8 +18,9 @@ import (
 )
 
 type RESTManager struct {
-	api    *BybitApi
-	logger Logger
+	api     *BybitApi
+	logger  Logger
+	timeout time.Duration
 
 	encoder *schema.Encoder
 }
@@ -28,6 +30,7 @@ func NewRESTManager(api *BybitApi, defaultRestUrl string) *RESTManager {
 		api:     api,
 		encoder: schema.NewEncoder(),
 		logger:  api.logger,
+		timeout: api.timeout,
 	}
 
 	rm.api.ConfigureRestUrl(defaultRestUrl)
@@ -48,6 +51,11 @@ func (r *RESTManager) encodeToQuery(params interface{}) (string, error) {
 
 func (r *RESTManager) sendRequest(req *http.Request, result interface{}) error {
 	client := r.getHTTPClient()
+
+	ctx, cancel := context.WithTimeout(r.api.context, r.timeout)
+	defer cancel()
+
+	req = req.WithContext(ctx)
 
 	r.logger.Debug("Sending request to: %s", req.URL.String())
 	resp, err := client.Do(req)
@@ -127,6 +135,48 @@ func (r *RESTManager) PlaceOrder(params PlaceOrderParams) (*PlaceOrderResponse, 
 	r.setAuthHeaders(req, signature, timestamp)
 
 	var result PlaceOrderResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, err
+	}
+
+	return &result, nil
+}
+
+func (r *RESTManager) CancelOrder(params CancelOrderParams) (*CancelOrderResponse, error) {
+	const path = "/v5/order/cancel"
+	url := r.api.BASE_REST_URL + path
+
+	if params.Category == "" || params.Symbol == "" {
+		return nil, fmt.Errorf("category and symbol are required fields")
+	}
+	if params.OrderId == nil && params.OrderLinkId == nil {
+		return nil, fmt.Errorf("either orderId or orderLinkId must be provided")
+	}
+
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(paramsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	signature, timestamp, err := genSignature(
+		params,
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result CancelOrderResponse
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, err
 	}
@@ -280,6 +330,43 @@ func (r *RESTManager) GetInstrumentsInfo(params GetInstrumentsInfoParams) (*GetI
 	var result GetInstrumentsInfoResponse
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("failed to get instruments info: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (r *RESTManager) GetWalletBalance(params GetWalletBalanceParams) (*GetWalletBalanceResponse, error) {
+	const path = "/v5/account/wallet-balance"
+
+	queryStr, err := r.encodeToQuery(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	timestamp := time.Now().UnixMilli()
+	signature, timestamp, err := genSignature(
+		queryStr,
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result GetWalletBalanceResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get wallet balance: %w", err)
 	}
 
 	return &result, nil

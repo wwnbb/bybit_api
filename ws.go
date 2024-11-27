@@ -9,13 +9,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/dustinxie/lockfree"
+	json "github.com/goccy/go-json"
 	"github.com/google/uuid"
 	gws "github.com/gorilla/websocket"
+	pp "github.com/wwnbb/pprint"
 )
 
 const (
@@ -42,11 +45,11 @@ type WSConnection struct {
 	writeMu    sync.Mutex
 }
 
-func (c *WSConnection) GetWsState() ConnectionState {
+func (c *WSConnection) GetState() ConnectionState {
 	return ConnectionState(c.state.Load())
 }
 
-func (c *WSConnection) SetState(state ConnectionState) {
+func (c *WSConnection) setState(state ConnectionState) {
 	c.state.Store(int32(state))
 }
 
@@ -57,18 +60,22 @@ func (c *WSConnection) WriteJSONThreadSafe(v interface{}) error {
 	return c.WriteJSON(v)
 }
 
+type WsMsg struct {
+	Topic string
+	Data  interface{}
+}
+
 // WSManager manages the websocket connection
 type WSManager struct {
 	api    *BybitApi
-	wsType WSType
-	conn   *WSConnection
-	DataCh chan []byte
+	wsType WebSocketT
+	Conn   *WSConnection
+	DataCh chan WsMsg
 	url    string
 
-	subscriptions   map[string]chan []byte
+	subscriptions   map[string]struct{}
 	subscriptionsMu sync.RWMutex
 
-	isConnected    atomic.Bool
 	reconnectDelay time.Duration
 
 	done       chan struct{}
@@ -87,39 +94,39 @@ func (m *WSManager) getReqId(topic string) string {
 	return fmt.Sprintf("%s_%d", topic, 1)
 }
 
-func newWSManager(api *BybitApi, wsType WSType, url string) *WSManager {
+func newWSManager(api *BybitApi, wsType WebSocketT, url string) *WSManager {
 	wsm := &WSManager{
 		api:            api,
 		wsType:         wsType,
-		subscriptions:  make(map[string]chan []byte),
+		subscriptions:  make(map[string]struct{}),
 		reconnectDelay: wsInitialReconnectDelay,
 		done:           make(chan struct{}),
 		requestIds:     lockfree.NewHashMap(),
-		DataCh:         make(chan []byte, 5000),
 		url:            url,
-	}
 
+		DataCh: make(chan WsMsg, 5000),
+	}
 	return wsm
 }
 
-// EnsureConnected will establish a connection if it is not already established
-func (m *WSManager) EnsureConnected(ctx context.Context) error {
-	if m.conn == nil {
-		if err := m.Connect(ctx); err != nil {
+// ensureConnected will establish a connection if it is not already established
+func (m *WSManager) ensureConnected(ctx context.Context) error {
+	if m.Conn == nil {
+		if err := m.connect(ctx); err != nil {
 			return fmt.Errorf("failed to establish connection: %w", err)
 		}
 		if _, exists := AUTH_REQUIRED_TYPES[m.wsType]; exists {
-			if m.conn.apiKey == "" || m.conn.apiSecret == "" {
+			if m.Conn.apiKey == "" || m.Conn.apiSecret == "" {
 				return fmt.Errorf("api key and secret required for private websocket")
 			}
 			if err := m.sendAuth(); err != nil {
-				m.conn.SetState(StatusDisconnected)
+				m.Conn.setState(StatusDisconnected)
 				return fmt.Errorf("failed to authenticate: %w", err)
 			}
 		}
 	}
 
-	if m.conn.GetWsState() != StatusConnected {
+	if m.Conn.GetState() != StatusConnected {
 		return fmt.Errorf("websocket connection not in connected state")
 	}
 
@@ -142,12 +149,12 @@ func (m *WSManager) sendAuth() error {
 		"args":   []interface{}{m.api.ApiKey, expires, signature},
 	}
 
-	return m.conn.WriteJSONThreadSafe(authMessage)
+	return m.Conn.WriteJSONThreadSafe(authMessage)
 }
 
-// Connect to the websocket server
-func (m *WSManager) Connect(ctx context.Context) error {
-	if !m.isConnected.CompareAndSwap(false, true) {
+// connect to the websocket server
+func (m *WSManager) connect(ctx context.Context) error {
+	if m.Conn != nil && m.Conn.GetState() == StatusConnected {
 		return fmt.Errorf("websocket connection already established")
 	}
 
@@ -155,11 +162,11 @@ func (m *WSManager) Connect(ctx context.Context) error {
 	wsConn, _, err := gws.DefaultDialer.DialContext(connCtx, m.url, nil)
 	if err != nil {
 		cancel()
-		m.isConnected.Store(false)
+		m.Conn.setState(StatusDisconnected)
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
 
-	m.conn = &WSConnection{
+	m.Conn = &WSConnection{
 		Conn:       wsConn,
 		ctx:        connCtx,
 		cancel:     cancel,
@@ -170,7 +177,7 @@ func (m *WSManager) Connect(ctx context.Context) error {
 		apiSecret:  m.api.ApiSecret,
 	}
 
-	m.conn.state.Store(int32(StatusConnected))
+	m.Conn.state.Store(int32(StatusConnected))
 
 	go m.readMessages(ctx)
 	go m.pingLoop(ctx)
@@ -188,7 +195,7 @@ func (m *WSManager) pingLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ticker.C:
-			if m.conn.GetWsState() == StatusDisconnected {
+			if m.Conn.GetState() == StatusDisconnected {
 				time.Sleep(1 * time.Second)
 				continue
 			}
@@ -196,8 +203,8 @@ func (m *WSManager) pingLoop(ctx context.Context) {
 				"req_id": m.getReqId("ping"),
 				"op":     "ping",
 			}
-			if err := m.conn.WriteJSONThreadSafe(payload); err != nil {
-				m.conn.SetState(StatusDisconnected)
+			if err := m.Conn.WriteJSONThreadSafe(payload); err != nil {
+				m.Conn.setState(StatusDisconnected)
 				m.api.logger.Error("failed to send ping message: %v", err)
 				continue
 			} else {
@@ -220,10 +227,10 @@ func (m *WSManager) reconnectLoop(ctx context.Context) {
 		case <-m.done:
 			return
 		default:
-			if m.conn == nil || m.conn.GetWsState() == StatusDisconnected {
+			if m.Conn == nil || m.Conn.GetState() == StatusDisconnected {
 				m.api.logger.Debug("reconnecting websocket")
 
-				if err := m.Connect(ctx); err != nil {
+				if err := m.connect(ctx); err != nil {
 					m.api.logger.Error("failed to reconnect: %v", err)
 
 					select {
@@ -256,10 +263,10 @@ func (m *WSManager) reconnectLoop(ctx context.Context) {
 
 func (m *WSManager) readMessages(ctx context.Context) {
 	defer func() {
-		m.isConnected.Store(false)
-		if m.conn != nil {
-			m.conn.state.Store(int32(StatusDisconnected))
-			m.conn.Close()
+		m.Conn.setState(StatusDisconnected)
+		if m.Conn != nil {
+			m.Conn.state.Store(int32(StatusDisconnected))
+			m.Conn.Close()
 		}
 	}()
 
@@ -270,11 +277,11 @@ func (m *WSManager) readMessages(ctx context.Context) {
 		case <-m.done:
 			return
 		default:
-			if m.conn == nil {
+			if m.Conn == nil {
 				return
 			}
 
-			_, message, err := m.conn.ReadMessage()
+			_, message, err := m.Conn.ReadMessage()
 			if err != nil {
 				if gws.IsUnexpectedCloseError(err,
 					gws.CloseGoingAway,
@@ -284,11 +291,32 @@ func (m *WSManager) readMessages(ctx context.Context) {
 				return
 			}
 
-			m.conn.lastPing = time.Now()
+			m.Conn.lastPing = time.Now()
+
+			topicStruct := struct {
+				Topic   string `json:"topic"`
+				Op      string `json:"op"`
+				Success string `json:"success"`
+			}{}
+
+			if err := json.Unmarshal(message, &topicStruct); err != nil {
+				m.api.logger.Error("failed to get topic: %v", err)
+			}
+			topic := topicStruct.Topic
+			fmt.Println("topic: ", topic)
+
+			switch {
+			case topic == "pong":
+				m.api.logger.Debug("received pong message")
+				continue
+			}
+
+			// Convert byte array to serialized struct
+			serialized, err := m.serializeWsResponse(topic, message)
 
 			select {
-			case m.DataCh <- message:
-				m.api.logger.Debug("received message: %s", message)
+			case m.DataCh <- WsMsg{Topic: topic, Data: message}:
+				m.api.logger.Debug("received message: %s", pp.PrettyFormat(serialized))
 			default:
 				m.api.logger.Error("message buffer full, dropping message")
 			}
@@ -296,21 +324,113 @@ func (m *WSManager) readMessages(ctx context.Context) {
 	}
 }
 
-func (m *WSManager) Close() error {
+func (m *WSManager) serializeWsResponse(topic string, data []byte) (interface{}, error) {
+	// For topics with prefixes, extract the main topic and subtopic
+	parts := strings.Split(topic, ".")
+	mainTopic := parts[0]
+
+	switch mainTopic {
+	case "wallet":
+		var response WalletWebsocketResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal wallet response: %w", err)
+		}
+		return response, nil
+
+	case "tickers":
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid ticker topic format: %s", topic)
+		}
+
+		switch parts[1] {
+		case "spot":
+			var response SpotTicker
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal spot ticker: %w", err)
+			}
+			return response, nil
+
+		case "linear", "inverse":
+			var response LinearInverseTicker
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal %s ticker: %w", parts[1], err)
+			}
+			return response, nil
+
+		case "option":
+			var response OptionTicker
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal option ticker: %w", err)
+			}
+			return response, nil
+
+		default:
+			return nil, fmt.Errorf("unknown ticker type: %s", parts[1])
+		}
+
+	case "orderbook":
+		var response GetOrderbookResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal orderbook: %w", err)
+		}
+		return response, nil
+
+	case "kline":
+		var response GetKlineResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal kline: %w", err)
+		}
+		return response, nil
+
+	case "order":
+		var response GetOrdersResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal order: %w", err)
+		}
+		return response, nil
+
+	case "position":
+		// Add position response struct when available
+		var response map[string]interface{}
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal position: %w", err)
+		}
+		return response, nil
+
+	case "execution":
+		// Add execution response struct when available
+		var response map[string]interface{}
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal execution: %w", err)
+		}
+		return response, nil
+
+	case "pong":
+		return "pong", nil
+
+	default:
+		var response map[string]interface{}
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal unknown topic %s: %w", topic, err)
+		}
+		return response, nil
+	}
+}
+
+func (m *WSManager) close() error {
 	close(m.done)
 
 	m.subscriptionsMu.Lock()
 	defer m.subscriptionsMu.Unlock()
 
-	for topic, ch := range m.subscriptions {
-		close(ch)
+	for topic := range m.subscriptions {
 		delete(m.subscriptions, topic)
 	}
 
-	if m.conn != nil {
-		m.conn.cancel()
-		if m.conn != nil {
-			return m.conn.Close()
+	if m.Conn != nil {
+		m.Conn.cancel()
+		if m.Conn != nil {
+			return m.Conn.Close()
 		}
 	}
 
@@ -319,7 +439,7 @@ func (m *WSManager) Close() error {
 
 func (m *WSManager) sendSubscribe(topic string) error {
 	m.api.logger.Debug("Subscribing to %s", topic)
-	return m.conn.WriteJSONThreadSafe(map[string]interface{}{
+	return m.Conn.WriteJSONThreadSafe(map[string]interface{}{
 		"req_id": m.getReqId("subscribe"),
 		"op":     "subscribe",
 		"args":   []string{topic},
@@ -327,7 +447,7 @@ func (m *WSManager) sendSubscribe(topic string) error {
 }
 
 func (m *WSManager) sendUnsubscribe(topic string) error {
-	return m.conn.WriteJSONThreadSafe(map[string]interface{}{
+	return m.Conn.WriteJSONThreadSafe(map[string]interface{}{
 		"req_id": m.getReqId("unsubscribe"),
 		"op":     "unsubscribe",
 		"args":   []string{topic},
@@ -340,13 +460,14 @@ func (m *WSManager) Subscribe(topic string) error {
 	m.subscriptionsMu.Lock()
 	defer m.subscriptionsMu.Unlock()
 
-	if err := m.EnsureConnected(context.Background()); err != nil {
+	if err := m.ensureConnected(m.api.context); err != nil {
 		return err
 	}
 
 	if err := m.sendSubscribe(topic); err != nil {
 		return fmt.Errorf("failed to subscribe: %w", err)
 	}
+	m.subscriptions[topic] = struct{}{}
 
 	return nil
 }
@@ -376,7 +497,7 @@ func (m *WSManager) GetSubscribedTopics() []string {
 }
 
 func (m *WSManager) sendRequest(operation string, request interface{}, headers map[string]interface{}) error {
-	if err := m.EnsureConnected(context.Background()); err != nil {
+	if err := m.ensureConnected(m.api.context); err != nil {
 		return err
 	}
 
@@ -388,9 +509,7 @@ func (m *WSManager) sendRequest(operation string, request interface{}, headers m
 		"op":     operation,
 		"args":   []interface{}{request},
 	}
-	PrettyPrint(message)
-
-	return m.conn.WriteJSONThreadSafe(message)
+	return m.Conn.WriteJSONThreadSafe(message)
 }
 
 func (m *WSManager) PlaceOrder(request PlaceOrderParams) error {
