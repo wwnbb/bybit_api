@@ -9,7 +9,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/wwnbb/pprint v0.0.3
+	github.com/wwnbb/pprint v0.0.4
 	github.com/wwnbb/ptr v1.0.2
 )
 

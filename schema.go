@@ -284,6 +284,48 @@ type OrderData struct {
 	UpdatedTime        string       `json:"updatedTime"`
 }
 
+// https://bybit-exchange.github.io/docs/v5/websocket/private/execution
+type ExecutionWebsocketResponse struct {
+	Id           string          `json:"id"`
+	Topic        string          `json:"topic"`
+	CreationTime int64           `json:"creationTime"`
+	Data         []ExecutionData `json:"data"`
+}
+
+type ExecutionData struct {
+	BlockTradeId    string `json:"blockTradeId"`
+	Category        string `json:"category"`
+	ClosedSize      string `json:"closedSize"`
+	CreateType      string `json:"createType"`
+	ExecFee         string `json:"execFee"`
+	ExecId          string `json:"execId"`
+	ExecPnl         string `json:"execPnl"`
+	ExecPrice       string `json:"execPrice"`
+	ExecQty         string `json:"execQty"`
+	ExecTime        string `json:"execTime"`
+	ExecType        string `json:"execType"`
+	ExecValue       string `json:"execValue"`
+	FeeRate         string `json:"feeRate"`
+	IndexPrice      string `json:"indexPrice"`
+	IsLeverage      string `json:"isLeverage"`
+	IsMaker         bool   `json:"isMaker"`
+	LeavesQty       string `json:"leavesQty"`
+	MarkIv          string `json:"markIv"`
+	MarkPrice       string `json:"markPrice"`
+	MarketUnit      string `json:"marketUnit"`
+	OrderId         string `json:"orderId"`
+	OrderLinkId     string `json:"orderLinkId"`
+	OrderPrice      string `json:"orderPrice"`
+	OrderQty        string `json:"orderQty"`
+	OrderType       string `json:"orderType"`
+	Seq             int64  `json:"seq"`
+	Side            string `json:"side"`
+	StopOrderType   string `json:"stopOrderType"`
+	Symbol          string `json:"symbol"`
+	TradeIv         string `json:"tradeIv"`
+	UnderlyingPrice string `json:"underlyingPrice"`
+}
+
 type KlineItem [7]string
 
 func (k KlineItem) StartTime() string  { return k[0] }
@@ -294,7 +336,6 @@ func (k KlineItem) ClosePrice() string { return k[4] }
 func (k KlineItem) Volume() string     { return k[5] }
 func (k KlineItem) Turnover() string   { return k[6] }
 
-// GetKlineResponse represents the response from the /v5/market/kline endpoint
 type GetKlineResponse struct {
 	BaseResponse
 	Result KlineResult `json:"result"`
@@ -304,6 +345,26 @@ type KlineResult struct {
 	Category string      `json:"category"`
 	Symbol   string      `json:"symbol"`
 	List     []KlineItem `json:"list"`
+}
+
+type KlineWsItem struct {
+	Start     int64  `json:"start"`
+	End       int64  `json:"end"`
+	Interval  string `json:"interval"`
+	Open      string `json:"open"`
+	Close     string `json:"close"`
+	High      string `json:"high"`
+	Low       string `json:"low"`
+	Volume    string `json:"volume"`
+	Turnover  string `json:"turnover"`
+	Confirm   bool   `json:"confirm"`
+	Timestamp int64  `json:"timestamp"`
+}
+
+type KlineWsResponse struct {
+	Ts   int64         `json:"ts"`
+	Type string        `json:"type"`
+	Data []KlineWsItem `json:"data"`
 }
 
 func (k KlineItem) ToFloat64() (startTime, open, high, low, close, volume, turnover float64, err error) {
@@ -396,6 +457,8 @@ type InstrumentInfo struct {
 	LotSizeFilter  LotSizeFilter  `json:"lotSizeFilter"`
 	PriceFilter    PriceFilter    `json:"priceFilter"`
 	RiskParameters RiskParameters `json:"riskParameters"`
+	PriceScale     string         `json:"priceScale"`
+	ContractType   string         `json:"contractType"`
 }
 
 type GetInstrumentsInfoResponse struct {
@@ -562,4 +625,62 @@ type SpotTickerData struct {
 }
 
 type AuthResponse struct {
+}
+
+type GetPositionParams struct {
+	Category   string `schema:"category"`             // Required. Product type: linear, inverse, option
+	Symbol     string `schema:"symbol,omitempty"`     // Symbol name, like BTCUSDT, uppercase only
+	BaseCoin   string `schema:"baseCoin,omitempty"`   // Base coin, uppercase only. option only
+	SettleCoin string `schema:"settleCoin,omitempty"` // Settle coin. For linear: either symbol or settleCoin is required
+	Limit      *int   `schema:"limit,omitempty"`      // Limit for data size per page. [1, 200]. Default: 20
+	Cursor     string `schema:"cursor,omitempty"`     // Cursor for pagination
+}
+
+type GetPositionResponse struct {
+	BaseResponse
+	Result struct {
+		Category       string         `json:"category"`
+		NextPageCursor string         `json:"nextPageCursor"`
+		List           []PositionItem `json:"list"`
+	} `json:"result"`
+}
+
+type PositionItem struct {
+	PositionIdx            int    `json:"positionIdx"`            // Position idx, used to identify positions in different position modes
+	RiskId                 int    `json:"riskId"`                 // Risk tier ID
+	RiskLimitValue         string `json:"riskLimitValue"`         // Risk limit value
+	Symbol                 string `json:"symbol"`                 // Symbol name
+	Side                   string `json:"side"`                   // Position side. Buy: long, Sell: short
+	Size                   string `json:"size"`                   // Position size, always positive
+	AvgPrice               string `json:"avgPrice"`               // Average entry price
+	PositionValue          string `json:"positionValue"`          // Position value
+	TradeMode              int    `json:"tradeMode"`              // Trade mode
+	AutoAddMargin          int    `json:"autoAddMargin"`          // Whether to add margin automatically when using isolated margin mode
+	PositionStatus         string `json:"positionStatus"`         // Position status. Normal, Liq, Adl
+	Leverage               string `json:"leverage"`               // Position leverage
+	MarkPrice              string `json:"markPrice"`              // Mark price
+	LiqPrice               string `json:"liqPrice"`               // Position liquidation price
+	BustPrice              string `json:"bustPrice"`              // Bankruptcy price
+	PositionIM             string `json:"positionIM"`             // Initial margin
+	PositionMM             string `json:"positionMM"`             // Maintenance margin
+	PositionBalance        string `json:"positionBalance"`        // Position margin
+	TakeProfit             string `json:"takeProfit"`             // Take profit price
+	StopLoss               string `json:"stopLoss"`               // Stop loss price
+	TrailingStop           string `json:"trailingStop"`           // Trailing stop (The distance from market price)
+	SessionAvgPrice        string `json:"sessionAvgPrice"`        // USDC contract session avg price
+	Delta                  string `json:"delta,omitempty"`        // Delta (options only)
+	Gamma                  string `json:"gamma,omitempty"`        // Gamma (options only)
+	Vega                   string `json:"vega,omitempty"`         // Vega (options only)
+	Theta                  string `json:"theta,omitempty"`        // Theta (options only)
+	UnrealisedPnl          string `json:"unrealisedPnl"`          // Unrealised PnL
+	CurRealisedPnl         string `json:"curRealisedPnl"`         // The realised PnL for the current holding position
+	CumRealisedPnl         string `json:"cumRealisedPnl"`         // Cumulative realised pnl
+	AdlRankIndicator       int    `json:"adlRankIndicator"`       // Auto-deleverage rank indicator
+	CreatedTime            string `json:"createdTime"`            // Timestamp of the first time position was created (ms)
+	UpdatedTime            string `json:"updatedTime"`            // Position updated timestamp (ms)
+	Seq                    int64  `json:"seq"`                    // Cross sequence
+	IsReduceOnly           bool   `json:"isReduceOnly"`           // Useful when Bybit lower the risk limit
+	MMRSysUpdatedTime      string `json:"mmrSysUpdatedTime"`      // Timestamp of MMR system update
+	LeverageSysUpdatedTime string `json:"leverageSysUpdatedTime"` // Timestamp of leverage system update
+	TpslMode               string `json:"tpslMode"`               // TP/SL mode, deprecated, always "Full"
 }

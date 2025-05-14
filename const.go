@@ -14,6 +14,7 @@ const (
 	WS_SPOT WebSocketT = iota
 	WS_LINEAR
 	WS_INVERSE
+	WS_OPTION
 	WS_PRIVATE
 	WS_TRADE
 )
@@ -25,25 +26,31 @@ var (
 	}
 )
 
+const API_VERSION = "v5"
+
 const (
-	WS_URL_TRADE   = "wss://stream.bybit.com/realtime"
-	WS_URL_PRIVATE = "wss://stream.bybit.com/v5/private"
-	WS_URL_SPOT    = "wss://stream.bybit.com/v5/public/spot"
-	WS_URL_LINEAR  = "wss://stream.bybit.com/v5/public/linear"
-	WS_URL_INVERSE = "wss://stream.bybit.com/v5/public/inverse"
+	WSS_URL_BASE = "wss://stream.bybit.com"
+
+	WS_URL_TRADE   = WSS_URL_BASE + "/realtime"
+	WS_URL_PRIVATE = WSS_URL_BASE + "/" + API_VERSION + "/" + "private"
+	WS_URL_SPOT    = WSS_URL_BASE + "/" + API_VERSION + "/" + "public/spot"
+	WS_URL_LINEAR  = WSS_URL_BASE + "/" + API_VERSION + "/" + "public/linear"
+	WS_URL_INVERSE = WSS_URL_BASE + "/" + API_VERSION + "/" + "public/inverse"
+	WS_URL_OPTION  = WSS_URL_BASE + "/" + API_VERSION + "/" + "public/option"
 )
 
 const (
-	BASE_URL    = "https://api.bybit.com"
-	TESTNET_URL = "https://api-testnet.bybit.com"
-	RECV_WINDOW = "5000"
+	BASE_URL              = "https://api.bybit.com"
+	BASE_DEMO_URL         = "https://api-demo.bybit.com"
+	TESTNET_URL           = "https://api-testnet.bybit.com"
+	BASE_DEMO_TESTNET_URL = "https://api-demo-testnet.bybit.com"
+	RECV_WINDOW           = "5000"
 )
 
 const (
-	MAINNET_BASE_URL = "wss://stream.bybit.com"
-	TESTNET_BASE_URL = "wss://stream-testnet.bybit.com"
-
-	API_VERSION = "v5"
+	MAINNET_BASE_URL      = "wss://stream.bybit.com"
+	MAINNET_DEMO_BASE_URL = "wss://stream-demo.bybit.com"
+	TESTNET_BASE_URL      = "wss://stream-testnet.bybit.com"
 
 	MAINNET_SPOT_WS    = MAINNET_BASE_URL + "/" + API_VERSION + "/public/spot"
 	MAINNET_LINEAR_WS  = MAINNET_BASE_URL + "/" + API_VERSION + "/public/linear"
@@ -52,6 +59,14 @@ const (
 
 	MAINNET_PRIVATE_WS = MAINNET_BASE_URL + "/" + API_VERSION + "/private"
 	MAINNET_TRADE_WS   = MAINNET_BASE_URL + "/" + API_VERSION + "/trade"
+
+	MAINNET_DEMO_SPOT_WS    = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/public/spot"
+	MAINNET_DEMO_LINEAR_WS  = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/public/linear"
+	MAINNET_DEMO_INVERSE_WS = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/public/inverse"
+	MAINNET_DEMO_OPTION_WS  = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/public/option"
+
+	MAINNET_DEMO_PRIVATE_WS = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/private"
+	MAINNET_DEMO_TRADE_WS   = MAINNET_DEMO_BASE_URL + "/" + API_VERSION + "/trade"
 
 	TESTNET_SPOT_WS    = TESTNET_BASE_URL + "/" + API_VERSION + "/public/spot"
 	TESTNET_LINEAR_WS  = TESTNET_BASE_URL + "/" + API_VERSION + "/public/linear"

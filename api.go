@@ -8,10 +8,10 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 
-	// "sync"
 	"time"
 
 	json "github.com/goccy/go-json"
@@ -32,45 +32,62 @@ func (tp *TimeProvider) Now() time.Time {
 	return time.Now()
 }
 
+var ERR_URLS_NOT_CONFIGURED = errors.New("Configure api urls")
+var ERR_TRADING_STREAMS_NOT_SUPPORTED = errors.New("Trading streams not supported on demo account")
+
 type BybitApi struct {
 	ApiKey    string
 	ApiSecret string
 	context   context.Context
 	timeout   time.Duration
+	UrlSet    bool
 
 	BASE_REST_URL  string
 	WS_URL_PRIVATE string
 	WS_URL_SPOT    string
 	WS_URL_LINEAR  string
 	WS_URL_INVERSE string
+	WS_URL_OPTION  string
 	WS_URL_TRADE   string
 
 	wsPool  map[string]chan []byte
-	logger  Logger
+	Logger  Logger
 	encoder *schema.Encoder
 
 	REST    *RESTManager
 	Spot    *WSManager
 	Linear  *WSManager
 	Inverse *WSManager
+	Option  *WSManager
 	Trade   *WSManager
 	Private *WSManager
 }
 
 func (b *BybitApi) SetLogger(logger Logger) {
-	b.logger = logger
+	b.Logger = logger
 }
 
 func (b *BybitApi) ConfigureRestUrl(restUrl string) {
 	b.BASE_REST_URL = restUrl
+	b.REST = NewRESTManager(b)
 }
 
-func (b *BybitApi) ConfigureWsUrls(privateUrl, spotUrl, linearUrl, inverseUrl, tradeUrl string) {
+func (b *BybitApi) ConfigureWsUrls(privateUrl, spotUrl, linearUrl, inverseUrl, optionUrl, tradeUrl string) {
+	b.UrlSet = true
 	b.WS_URL_PRIVATE = privateUrl
 	b.WS_URL_SPOT = spotUrl
 	b.WS_URL_LINEAR = linearUrl
 	b.WS_URL_INVERSE = inverseUrl
+	b.WS_URL_OPTION = optionUrl
 	b.WS_URL_TRADE = tradeUrl
+
+	b.Spot = newWSManager(b, WS_SPOT, b.WS_URL_SPOT)
+	b.Linear = newWSManager(b, WS_LINEAR, b.WS_URL_LINEAR)
+	b.Inverse = newWSManager(b, WS_INVERSE, b.WS_URL_INVERSE)
+	b.Option = newWSManager(b, WS_OPTION, b.WS_URL_OPTION)
+	b.Trade = newWSManager(b, WS_TRADE, b.WS_URL_TRADE)
+	b.Private = newWSManager(b, WS_PRIVATE, b.WS_URL_PRIVATE)
+	b.REST = NewRESTManager(b)
 }
 
 func (b *BybitApi) ConfigureMainNetUrls() {
@@ -80,7 +97,20 @@ func (b *BybitApi) ConfigureMainNetUrls() {
 		MAINNET_SPOT_WS,
 		MAINNET_LINEAR_WS,
 		MAINNET_INVERSE_WS,
+		MAINNET_OPTION_WS,
 		MAINNET_TRADE_WS,
+	)
+}
+
+func (b *BybitApi) ConfigureMainNetDemoUrls() {
+	b.ConfigureRestUrl(BASE_DEMO_URL)
+	b.ConfigureWsUrls(
+		MAINNET_DEMO_PRIVATE_WS,
+		MAINNET_SPOT_WS,
+		MAINNET_LINEAR_WS,
+		MAINNET_INVERSE_WS,
+		MAINNET_OPTION_WS,
+		"",
 	)
 }
 
@@ -91,35 +121,21 @@ func (b *BybitApi) ConfigureTestNetUrls() {
 		TESTNET_SPOT_WS,
 		TESTNET_LINEAR_WS,
 		TESTNET_INVERSE_WS,
+		TESTNET_OPTION_WS,
 		TESTNET_TRADE_WS,
 	)
 }
 
-func NewBybitApi(apiKey, apiSecret string) *BybitApi {
+func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 	api := &BybitApi{
 		ApiKey:    apiKey,
 		ApiSecret: apiSecret,
-		context:   context.Background(),
+		context:   ctx,
 		wsPool:    make(map[string]chan []byte),
-		logger:    BasicLogger("BybitApi"),
+		Logger:    BasicLogger("BybitApi"),
 		timeout:   10 * time.Second,
-
-		WS_URL_PRIVATE: TESTNET_PRIVATE_WS,
-		WS_URL_SPOT:    TESTNET_SPOT_WS,
-		WS_URL_LINEAR:  TESTNET_LINEAR_WS,
-		WS_URL_INVERSE: TESTNET_INVERSE_WS,
-		WS_URL_TRADE:   TESTNET_TRADE_WS,
 	}
 	api.encoder = schema.NewEncoder()
-
-	api.Spot = newWSManager(api, WS_SPOT, api.WS_URL_SPOT)
-	api.Linear = newWSManager(api, WS_LINEAR, api.WS_URL_LINEAR)
-	api.Inverse = newWSManager(api, WS_INVERSE, api.WS_URL_INVERSE)
-	api.Trade = newWSManager(api, WS_TRADE, api.WS_URL_TRADE)
-	api.Private = newWSManager(api, WS_PRIVATE, api.WS_URL_PRIVATE)
-	api.REST = NewRESTManager(api, api.BASE_REST_URL)
-	api.ConfigureMainNetUrls()
-
 	return api
 
 }
@@ -129,13 +145,14 @@ func (b *BybitApi) Disconnect() {
 		b.Spot,
 		b.Linear,
 		b.Inverse,
+		b.Option,
 		b.Trade,
 		b.Private,
 	} {
 		err := m.close()
 		if err != nil {
 			// TODO: return errors instead of logging out
-			b.logger.Error("Failed to disconnect: %v", err)
+			b.Logger.Error("Failed to disconnect: %v", err)
 		}
 	}
 }

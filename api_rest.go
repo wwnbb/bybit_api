@@ -25,15 +25,14 @@ type RESTManager struct {
 	encoder *schema.Encoder
 }
 
-func NewRESTManager(api *BybitApi, defaultRestUrl string) *RESTManager {
+func NewRESTManager(api *BybitApi) *RESTManager {
 	rm := &RESTManager{
 		api:     api,
 		encoder: schema.NewEncoder(),
-		logger:  api.logger,
+		logger:  api.Logger,
 		timeout: api.timeout,
 	}
 
-	rm.api.ConfigureRestUrl(defaultRestUrl)
 	return rm
 }
 
@@ -69,7 +68,7 @@ func (r *RESTManager) sendRequest(req *http.Request, result interface{}) error {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	r.logger.Debug("Response status: %d, body: %s", resp.StatusCode, string(body))
+	r.logger.Debug("Response status: %d", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
@@ -344,6 +343,8 @@ func (r *RESTManager) GetWalletBalance(params GetWalletBalanceParams) (*GetWalle
 	}
 
 	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+	fmt.Println("************************reqURL************************")
+	fmt.Println(reqURL)
 
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
@@ -367,6 +368,42 @@ func (r *RESTManager) GetWalletBalance(params GetWalletBalanceParams) (*GetWalle
 	var result GetWalletBalanceResponse
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("failed to get wallet balance: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (r *RESTManager) GetPositions(params GetPositionParams) (*GetPositionResponse, error) {
+	const path = "/v5/position/list"
+
+	queryStr, err := r.encodeToQuery(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	signature, timestamp, err := genSignature(
+		queryStr,
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result GetPositionResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get position data: %w", err)
 	}
 
 	return &result, nil

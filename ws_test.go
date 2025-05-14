@@ -1,6 +1,7 @@
 package qant_api_bybit
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -25,19 +26,14 @@ type PongResponse struct {
 }
 
 func getApi() *BybitApi {
-	api := NewBybitApi("QU0G8RSs5aSsoGVir2", "IHmT3wcDaI7TBo0WlJaPlJj8JTMtdb5KQrZR")
-	api.ConfigureWsUrls(
-		TESTNET_PRIVATE_WS,
-		TESTNET_SPOT_WS,
-		TESTNET_LINEAR_WS,
-		TESTNET_INVERSE_WS,
-		TESTNET_TRADE_WS,
-	)
+	ctx := context.Background()
+	api := NewBybitApi("xH43Zpsk5MMvoAYz0J", "89aQHZd9P2xH3oTQDOPMuKIi2LvLgu1TcP6Z", ctx)
+	api.ConfigureMainNetDemoUrls()
 	return api
 }
 
 func TestGetReqId(t *testing.T) {
-	api := NewBybitApi("QU0G8RSs5aSsoGVir", "IHmT3wcDaI7TBo0WlJaPlJj8JTMtdb5KQrZR")
+	api := getApi()
 
 	wsm := newWSManager(api, WS_LINEAR, TESTNET_SPOT_WS)
 	reqId := wsm.getReqId("subscribe")
@@ -59,8 +55,10 @@ func TestGetReqId(t *testing.T) {
 
 func TestWsManagerSubscribe(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
-	api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Colud not connect to ws %v", err)
+	}
 	for i := 0; i < 1000; i++ {
 		fmt.Println(<-api.Spot.DataCh)
 	}
@@ -69,7 +67,6 @@ func TestWsManagerSubscribe(t *testing.T) {
 
 func TestWsManagerTradeSubscribe(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	api.Spot.Subscribe("publicTrade.BTCUSDT")
 	for i := 0; i < 10; i++ {
 		fmt.Println(<-api.Spot.DataCh)
@@ -79,12 +76,20 @@ func TestWsManagerTradeSubscribe(t *testing.T) {
 
 func TestWsManagerKlineSubscribe(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
-	api.Spot.Subscribe("kline.1.BTCUSDT.1m")
-	for i := 0; i < 10; i++ {
-		fmt.Println(<-api.Spot.DataCh)
+	api.Inverse.Subscribe("kline.1.BTCUSD")
+	for i := 0; i < 100; i++ {
+		fmt.Println(<-api.Inverse.DataCh)
 	}
-	api.Spot.Unsubscribe("kline.1.BTCUSDT.1m")
+	api.Inverse.Unsubscribe("kline.1.BTCUSD")
+}
+
+func TestWsManagerKlineSubscribeInverseBTCUSD(t *testing.T) {
+	api := getApi()
+	api.Inverse.Subscribe("kline.1.BTCUSD")
+	for i := 0; i < 100; i++ {
+		fmt.Println(<-api.Inverse.DataCh)
+	}
+	api.Inverse.Unsubscribe("kline.1.BTCUSD")
 }
 
 func TestWsManagerLiquidationSubscribe(t *testing.T) {
@@ -99,18 +104,25 @@ func TestWsManagerLiquidationSubscribe(t *testing.T) {
 
 func TestWsManagerTickerSubscribe(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
-	api.Spot.Subscribe("ticker.BTCUSDT")
-	for i := 0; i < 10; i++ {
+	api.Spot.Subscribe("tickers.BTCUSDT")
+	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Spot.DataCh)
+	}
+	api.Spot.Unsubscribe("ticker.BTCUSDT")
+}
+
+func TestWsManagerTickerSubscribeLinear(t *testing.T) {
+	api := getApi()
+	api.Linear.Subscribe("tickers.BTCUSDT")
+	for i := 0; i < 100; i++ {
+		fmt.Println(<-api.Linear.DataCh)
 	}
 	api.Spot.Unsubscribe("ticker.BTCUSDT")
 }
 
 func TestWsConnectionPingPong(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
-	api.Private.Subscribe("position")
+	api.Private.Subscribe("wallet")
 	for i := 0; i < 5; i++ {
 		data := <-api.Private.DataCh
 		pp.PrettyPrint(data)
@@ -119,10 +131,9 @@ func TestWsConnectionPingPong(t *testing.T) {
 
 func TestWsMultiConnection(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	api.Spot.Subscribe("orderbook.1.BTCUSDT")
 	api.Linear.Subscribe("orderbook.1.BTCUSDT")
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
 		select {
 		case data := <-api.Spot.DataCh:
 			fmt.Println("Spot")
@@ -137,9 +148,17 @@ func TestWsMultiConnection(t *testing.T) {
 
 func TestPositionWs(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	api.Private.Subscribe("position")
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 100; i++ {
+		data := <-api.Private.DataCh
+		fmt.Println(data)
+	}
+}
+
+func TestBalanceWs(t *testing.T) {
+	api := getApi()
+	api.Private.Subscribe("wallet")
+	for i := 0; i < 100; i++ {
 		data := <-api.Private.DataCh
 		fmt.Println(data)
 	}
@@ -147,7 +166,6 @@ func TestPositionWs(t *testing.T) {
 
 func TestExecutionWs(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	api.Private.Subscribe("execution")
 	data := <-api.Private.DataCh
 	fmt.Println(data)
@@ -155,26 +173,27 @@ func TestExecutionWs(t *testing.T) {
 
 func TestTradeAuthWs(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
-	api.Trade.Subscribe("trade")
+	err := api.Trade.Subscribe("trade")
+	if err != nil {
+		t.Fatalf("Could not subscribe to trade channel: %v", err)
+	}
 	data := <-api.Trade.DataCh
 	fmt.Println(data)
 }
 
 func TestSendRequest(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	header := map[string]interface{}{
 		"X-BAPI-TIMESTAMP": time.Now().UnixNano() / 1000000,
 	}
 
 	params := map[string]interface{}{
 		"category":  "linear",
-		"orderType": "Limit",
-		"price":     "60000",
-		"qty":       "0.001",
-		"side":      "Buy",
-		"symbol":    "BTCUSDT",
+		"orderType": "Market",
+		// "price":     "60000",
+		"qty":    "0.001",
+		"side":   "Buy",
+		"symbol": "BTCUSDT",
 	}
 
 	if err := api.Trade.sendRequest("order.create", params, header); err != nil {
@@ -188,7 +207,6 @@ func TestSendRequest(t *testing.T) {
 
 func TestWsDisconnect(t *testing.T) {
 	api := getApi()
-	api.ConfigureTestNetUrls()
 	api.Spot.Subscribe("orderbook.1.BTCUSDT")
 	api.Linear.Subscribe("orderbook.1.BTCUSDT")
 	api.Disconnect()

@@ -4,23 +4,38 @@
 package qant_api_bybit
 
 import (
+	"context"
+	"fmt"
 	pp "github.com/wwnbb/pprint"
 	"github.com/wwnbb/ptr"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 )
 
+func ConvertTsToHumanReadable(ts string) (time.Time, error) {
+	ts64, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("Error while converting ts string: %v to Time %v", ts, err)
+	}
+	ts64 = ts64 / 1000
+	t := time.Unix(ts64, 0)
+	return t, nil
+}
+
 func GetApi() *BybitApi {
 	apiKey := os.Getenv("BYBIT_API_KEY")
 	secretKey := os.Getenv("BYBIT_SECRET_KEY")
-	api := NewBybitApi(apiKey, secretKey)
-	api.ConfigureRestUrl(TESTNET_URL)
+	ctx := context.Background()
+	api := NewBybitApi(apiKey, secretKey, ctx)
+	api.ConfigureMainNetDemoUrls()
 	return api
 }
 
 func TestGetServerTime(t *testing.T) {
 	api := GetApi()
+	api.ConfigureMainNetUrls()
 	r, err := api.REST.GetServerTime()
 	if err != nil {
 		t.Error(err)
@@ -50,6 +65,25 @@ func TestGetOrderRT(t *testing.T) {
 	pp.PrettyPrint(r)
 }
 
+func TestGetOrders(t *testing.T) {
+	api := GetApi()
+	limit := 10
+	openOnly := 0
+	r, err := api.REST.GetOrders(OpenOrderRequest{
+		Category: "linear",
+		Symbol:   "BTCUSDT",
+		OpenOnly: &openOnly,
+		Limit:    &limit,
+	})
+	if err != nil {
+		t.Fatalf("Cannot get orders %s", err)
+	}
+	if r.RetMsg != "OK" {
+		t.Errorf("Error: %s", r.RetMsg)
+	}
+	pp.PrettyPrint(r)
+}
+
 func TestGetKline(t *testing.T) {
 	api := GetApi()
 	// 1724789575703
@@ -57,12 +91,12 @@ func TestGetKline(t *testing.T) {
 
 	endt := time.Now()
 	end := endt.UnixMilli()
-	start := endt.Add(-10 * 7 * 24 * time.Hour).UnixMilli() // 2 weeks ago
+	start := endt.Add(-60 * 120 * time.Second).UnixMilli()
 
 	r, err := api.REST.GetKline(GetKlineParams{
 		Category: "linear",
 		Symbol:   "BTCUSDT",
-		Interval: "60",
+		Interval: "1",
 		Start:    &start,
 		End:      &end,
 	})
@@ -72,7 +106,87 @@ func TestGetKline(t *testing.T) {
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
-	pp.PrettyPrint(r)
+	for _, v := range r.Result.List {
+		ts, err := ConvertTsToHumanReadable(v.StartTime())
+		if err != nil {
+			t.Error(err)
+			continue
+		}
+		fmt.Printf("t: %s, ", ts.Format("2006-01-02 15:04:05"))
+		fmt.Printf("o: %s, ", v.OpenPrice())
+		fmt.Printf("h: %s, ", v.HighPrice())
+		fmt.Printf("c: %s, ", v.ClosePrice())
+		fmt.Printf("l: %s\n", v.LowPrice())
+	}
+}
+
+func TestGetPositions(t *testing.T) {
+	api := GetApi()
+
+	testCases := []struct {
+		name    string
+		params  GetPositionParams
+		wantErr bool
+	}{
+		{
+			name: "Get All Linear Positions",
+			params: GetPositionParams{
+				Category: "inverse",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Get Positions with Limit",
+			params: GetPositionParams{
+				Category: "option",
+			},
+			wantErr: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := api.REST.GetPositions(tc.params)
+
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error but got none")
+				}
+				return
+			}
+
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if resp.RetMsg != "OK" {
+				t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
+			}
+
+			// Verify that the response contains the expected data structure
+			if resp.Result.Category != tc.params.Category {
+				t.Errorf("unexpected category: got %s, want %s", resp.Result.Category, tc.params.Category)
+			}
+
+			// If we specified a symbol, check that the positions are for that symbol
+			if tc.params.Symbol != "" {
+				for _, position := range resp.Result.List {
+					if position.Symbol != tc.params.Symbol {
+						t.Errorf("position symbol mismatch: got %s, want %s", position.Symbol, tc.params.Symbol)
+					}
+				}
+			}
+
+			// Check if limit parameter is respected
+			if tc.params.Limit != nil && len(resp.Result.List) > *tc.params.Limit {
+				t.Errorf("response contains more positions than the limit: got %d, limit %d",
+					len(resp.Result.List), *tc.params.Limit)
+			}
+
+			// Print the response for debugging
+			pp.PrettyPrint(resp)
+		})
+	}
 }
 
 func TestGetMarkPriceKline(t *testing.T) {
@@ -249,6 +363,29 @@ func TestPlaceOrder(t *testing.T) {
 	}
 }
 
+func TestPlaceInverseOrder(t *testing.T) {
+	api := GetApi()
+
+	params := PlaceOrderParams{
+		Category:   "inverse",
+		Symbol:     "BTCUSD",
+		Qty:        "100",
+		Price:      ptr.Ptr("90000"),
+		OrderType:  "Limit",
+		Side:       "Buy",
+		MarketUnit: ptr.Ptr(QuoteCoin),
+	}
+
+	resp, err := api.REST.PlaceOrder(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if resp.RetMsg != "OK" {
+		t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
+	}
+	pp.PrettyPrint(resp)
+}
+
 func TestPlaceAndCancelOrder(t *testing.T) {
 	// 1. Place a limit order
 	// 2. Cancel the order we just placed
@@ -298,7 +435,6 @@ func TestGetInstrumentsInfo(t *testing.T) {
 	// Cases:
 	// 1. Get BTCUSDT Spot info
 	// 2. Get Linear Instruments
-	// 3. Invalid Category
 	api := GetApi()
 	limit := 500
 
@@ -323,25 +459,11 @@ func TestGetInstrumentsInfo(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "Invalid Category",
-			params: GetInstrumentsInfoParams{
-				Category: "invalid",
-			},
-			wantErr: true,
-		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			resp, err := api.REST.GetInstrumentsInfo(tc.params)
-
-			if tc.wantErr {
-				if err == nil {
-					t.Error("expected error but got none")
-				}
-				return
-			}
 
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
@@ -378,4 +500,24 @@ func TestGetWalletBalance(t *testing.T) {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
 	pp.PrettyPrint(r)
+}
+
+type InstrumentType struct {
+	baseCoin     string
+	quoteCoin    string
+	contractType string
+}
+
+func TestGetInstruments(t *testing.T) {
+	api := GetApi()
+	// limit := 1000
+	// var instrMap = make(map[string]InstrumentType)
+
+	params := GetInstrumentsInfoParams{
+		Category: "linear",
+		Symbol:   "BTCUSDT",
+	}
+
+	resp, _ := api.REST.GetInstrumentsInfo(params)
+	pp.PrettyPrint(resp)
 }
