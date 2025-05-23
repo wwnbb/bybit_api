@@ -158,9 +158,11 @@ func TestPositionWs(t *testing.T) {
 func TestBalanceWs(t *testing.T) {
 	api := getApi()
 	api.Private.Subscribe("wallet")
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		data := <-api.Private.DataCh
-		fmt.Println(data)
+		fmt.Println("*")
+		pp.PrettyPrint(data)
+		fmt.Println("*")
 	}
 }
 

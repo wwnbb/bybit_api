@@ -372,7 +372,7 @@ func (m *WSManager) serializeWsResponse(topic string, data []byte) (interface{},
 
 	case "execution":
 		// Add execution response struct when available
-		var response map[string]interface{}
+		var response ExecutionWebsocketResponse
 		if err := json.Unmarshal(data, &response); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal execution: %w", err)
 		}
