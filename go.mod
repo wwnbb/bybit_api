@@ -1,4 +1,4 @@
-module github.com/wwnbb/bybit-api
+module github.com/wwnbb/bybit_api
 
 go 1.22.5
 
