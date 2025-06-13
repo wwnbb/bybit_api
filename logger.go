@@ -1,4 +1,4 @@
-package qant_api_bybit
+package bybit_api
 
 import (
 	"fmt"

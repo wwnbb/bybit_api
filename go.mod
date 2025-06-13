@@ -1,4 +1,4 @@
-module github.com/master-qh/qant_api_bybit
+module github.com/wwnbb/bybit-api
 
 go 1.22.5
 

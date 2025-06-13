@@ -1,7 +1,4 @@
-/*
- * Copyright (c) 2024 QuantHill <info@quanthill.ae>
- */
-package qant_api_bybit
+package bybit_api
 
 import (
 	"fmt"
