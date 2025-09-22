@@ -3,10 +3,24 @@ package bybit_api
 type ConnectionState int32
 
 const (
-	StatusDisconnected ConnectionState = iota // connection error occurred, can be reconnected
-	StatusConnected
-	StatusClosed // socket was permanently closed, exit all routines
+	StateNew ConnectionState = iota // connection error occurred, can be reconnected
+	StateConnecting
+	StateConnected
+	StateDisconnected
+	StateClosed
 )
+
+var states = [...]string{
+	"New",
+	"Connecting",
+	"Connected",
+	"Disconnected",
+	"Closed",
+}
+
+func (s ConnectionState) String() string {
+	return states[s]
+}
 
 type WebSocketT int
 
@@ -131,3 +145,24 @@ const (
 	TopicWalletLinear  TopicType = "wallet.linear"
 	TopicWalletInverse TopicType = "wallet.inverse"
 )
+
+type CategoryType string
+
+func (c CategoryType) String() string {
+	return string(c)
+}
+
+// "spot", "linear", "inverse", "option"
+const (
+	SpotCategory    CategoryType = "spot"
+	LinearCategory  CategoryType = "linear"
+	InverseCategory CategoryType = "inverse"
+	OptionCategory  CategoryType = "option"
+)
+
+var Categories []CategoryType = []CategoryType{
+	SpotCategory,
+	LinearCategory,
+	InverseCategory,
+	OptionCategory,
+}

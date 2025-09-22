@@ -3,10 +3,12 @@ package bybit_api
 import (
 	"context"
 	"fmt"
+	"github.com/google/uuid"
 	pp "github.com/wwnbb/pprint"
 	"github.com/wwnbb/ptr"
 	"os"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 )
@@ -30,6 +32,15 @@ func GetApi() *BybitApi {
 	return api
 }
 
+func GetApiProd() *BybitApi {
+	apiKey := os.Getenv("BYBIT_API_KEY_PROD")
+	secretKey := os.Getenv("BYBIT_SECRET_KEY_PROD")
+	ctx := context.Background()
+	api := NewBybitApi(apiKey, secretKey, ctx)
+	api.ConfigureMainNetUrls()
+	return api
+}
+
 func TestGetServerTime(t *testing.T) {
 	api := GetApi()
 	api.ConfigureMainNetUrls()
@@ -41,6 +52,7 @@ func TestGetServerTime(t *testing.T) {
 		t.Errorf("Error: %s", r.RetMsg)
 	}
 	pp.PrettyPrint(r)
+	fmt.Printf("Current timestamp: %d \n", time.Now().UnixMilli())
 }
 
 func TestGetOrderRT(t *testing.T) {
@@ -48,10 +60,11 @@ func TestGetOrderRT(t *testing.T) {
 	limit := 10
 	openOnly := 0
 	r, err := api.REST.GetOrders(OpenOrderRequest{
-		Category: "linear",
-		Symbol:   "ETHUSDT",
+		Category: "inverse",
+		Symbol:   "LTCUSD",
 		OpenOnly: &openOnly,
 		Limit:    &limit,
+		OrderId:  "7c1aac82-b3ac-4b97-8375-6a446e269c05",
 	})
 	if err != nil {
 		t.Error(err)
@@ -88,14 +101,17 @@ func TestGetKline(t *testing.T) {
 
 	endt := time.Now()
 	end := endt.UnixMilli()
-	start := endt.Add(-60 * 120 * time.Second).UnixMilli()
+	end = 1748304000000 + 1000*60*60*24
+	// 1747526400000
+	// 1747440000000
 
 	r, err := api.REST.GetKline(GetKlineParams{
-		Category: "linear",
+		Category: "spot",
 		Symbol:   "BTCUSDT",
-		Interval: "1",
-		Start:    &start,
-		End:      &end,
+		Interval: "D",
+		// Start:    &start,
+		End:   &end,
+		Limit: ptr.Ptr(11),
 	})
 	if err != nil {
 		t.Error(err)
@@ -109,7 +125,8 @@ func TestGetKline(t *testing.T) {
 			t.Error(err)
 			continue
 		}
-		fmt.Printf("t: %s, ", ts.Format("2006-01-02 15:04:05"))
+		fmt.Printf("ts: %d, ", ts.UnixMilli())
+		fmt.Printf("t: %s, ", ts.UTC().Format(time.DateTime))
 		fmt.Printf("o: %s, ", v.OpenPrice())
 		fmt.Printf("h: %s, ", v.HighPrice())
 		fmt.Printf("c: %s, ", v.ClosePrice())
@@ -234,25 +251,16 @@ func TestGetIndexPriceKline(t *testing.T) {
 	pp.PrettyPrint(r)
 }
 
-func GetDefaultLimit(category string) int {
+func GetDefaultLimit(category CategoryType) int {
 	switch category {
 	case "spot":
 		return 1
-	case "linear", "inverse":
+	case LinearCategory, InverseCategory:
 		return 25
-	case "option":
+	case OptionCategory:
 		return 1
 	default:
 		return 1
-	}
-}
-
-func NewOrderbookParams(category, symbol string) GetOrderbookParams {
-	limit := GetDefaultLimit(category)
-	return GetOrderbookParams{
-		Category: category,
-		Symbol:   symbol,
-		Limit:    &limit,
 	}
 }
 
@@ -363,24 +371,35 @@ func TestPlaceOrder(t *testing.T) {
 func TestPlaceInverseOrder(t *testing.T) {
 	api := GetApi()
 
-	params := PlaceOrderParams{
-		Category:   "inverse",
-		Symbol:     "BTCUSD",
-		Qty:        "100",
-		Price:      ptr.Ptr("90000"),
-		OrderType:  "Limit",
-		Side:       "Buy",
-		MarketUnit: ptr.Ptr(QuoteCoin),
-	}
+	wg := sync.WaitGroup{}
+	for range 10 {
+		for range 5 {
+			wg.Add(1)
+			go func() {
+				id := uuid.New()
+				params := PlaceOrderParams{
+					Category:    "inverse",
+					Symbol:      "DOGEUSD",
+					Qty:         "5",
+					OrderType:   "Market",
+					Side:        "Buy",
+					OrderLinkId: ptr.Ptr(id.String()),
+					MarketUnit:  ptr.Ptr(QuoteCoin),
+				}
 
-	resp, err := api.REST.PlaceOrder(params)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+				resp, err := api.REST.PlaceOrder(params)
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				if resp.RetMsg != "OK" {
+					t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
+				}
+				pp.PrettyPrint(resp)
+				wg.Done()
+			}()
+		}
+		wg.Wait()
 	}
-	if resp.RetMsg != "OK" {
-		t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
-	}
-	pp.PrettyPrint(resp)
 }
 
 func TestPlaceAndCancelOrder(t *testing.T) {
@@ -425,6 +444,36 @@ func TestPlaceAndCancelOrder(t *testing.T) {
 	}
 
 	pp.PrettyPrint(cancelResp)
+}
+
+func TestGetInstrumentsInfoCall(t *testing.T) {
+	// TestGetInstrumentsInfo tests the GetInstrumentsInfo endpoint
+	// Cases:
+	// 1. Get BTCUSDT Spot info
+	// 2. Get Linear Instruments
+	api := GetApi()
+
+	params := GetInstrumentsInfoParams{
+		Category: "linear",
+		Symbol:   "BTCUSDT",
+	}
+
+	// для инверсного
+	// BTC -> funding currency
+	// USD -> quote coin
+
+	//  Для линейного
+	// usdt - И quote и funding
+
+	resp, err := api.REST.GetInstrumentsInfo(params)
+
+	fmt.Printf("BaseCoin: %s, QuoteCoin: %s\n", resp.Result.List[0].BaseCoin, resp.Result.List[0].QuoteCoin)
+	pp.PrettyPrint(resp)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	time.Sleep(1 * time.Second) // Sleep to avoid hitting rate limits
+	fmt.Print("\n")
 }
 
 func TestGetInstrumentsInfo(t *testing.T) {
@@ -499,6 +548,20 @@ func TestGetWalletBalance(t *testing.T) {
 	pp.PrettyPrint(r)
 }
 
+func TestGetWalletBalanceProd(t *testing.T) {
+	api := GetApiProd()
+	r, err := api.REST.GetWalletBalance(GetWalletBalanceParams{
+		AccountType: "UNIFIED",
+	})
+	if err != nil {
+		t.Error(err)
+	}
+	if r.RetMsg != "OK" {
+		t.Errorf("Error: %s", r.RetMsg)
+	}
+	pp.PrettyPrint(r)
+}
+
 type InstrumentType struct {
 	baseCoin     string
 	quoteCoin    string
@@ -516,5 +579,43 @@ func TestGetInstruments(t *testing.T) {
 	}
 
 	resp, _ := api.REST.GetInstrumentsInfo(params)
+	pp.PrettyPrint(resp)
+}
+
+func TestGetPositionsCall(t *testing.T) {
+	api := GetApi()
+
+	params := GetPositionParams{
+		Category: "spot",
+		// SettleCoin: "USDT",
+	}
+
+	resp, err := api.REST.GetPositions(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.RetMsg != "OK" {
+		t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
+	}
+
+	pp.PrettyPrint(resp)
+}
+
+func TestRecentPublicTradesCall(t *testing.T) {
+	api := GetApi()
+	params := GetRecentPublicTradesParams{
+		Symbol:   "BTCUSDT",
+		Category: "spot",
+	}
+	resp, err := api.REST.GetRecentPublicTrades(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if resp.RetMsg != "OK" {
+		t.Errorf("unexpected response message: got %s, want OK", resp.RetMsg)
+	}
+
 	pp.PrettyPrint(resp)
 }

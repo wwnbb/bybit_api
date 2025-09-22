@@ -28,6 +28,25 @@ const (
 	BaseCoin  MarketUnit = "baseCoin"
 )
 
+// GetAccountInfoResponse represents the response from the Get Account Info endpoint
+// https://bybit-exchange.github.io/docs/v5/account/account-info#response-parameters
+type GetAccountInfoResponse struct {
+	BaseResponse
+	Result AccountInfo `json:"result"`
+}
+
+// AccountInfo represents the account information data
+type AccountInfo struct {
+	UnifiedMarginStatus int    `json:"unifiedMarginStatus"` // Account status
+	MarginMode          string `json:"marginMode"`          // ISOLATED_MARGIN, REGULAR_MARGIN, PORTFOLIO_MARGIN
+	IsMasterTrader      bool   `json:"isMasterTrader"`      // Whether this account is a leader (copytrading). true, false
+	SpotHedgingStatus   string `json:"spotHedgingStatus"`   // Whether the unified account enables Spot hedging. ON, OFF
+	UpdatedTime         string `json:"updatedTime"`         // Account data updated timestamp (ms)
+	DcpStatus           string `json:"dcpStatus"`           // deprecated, always OFF. Please use Get DCP Info
+	TimeWindow          int    `json:"timeWindow"`          // deprecated, always 0. Please use Get DCP Info
+	SmpGroup            int    `json:"smpGroup"`            // deprecated, always 0. Please query Get SMP Group ID endpoint
+}
+
 // https://bybit-exchange.github.io/docs/v5/order/create-order#request-parameters
 type PlaceOrderParams struct {
 	Category         string      `json:"category"`
@@ -492,6 +511,40 @@ type CoinBalance struct {
 type GetWalletBalanceParams struct {
 	AccountType string `schema:"accountType"`
 	Coin        string `schema:"coin,omitempty"`
+}
+
+type GetRecentPublicTradesParams struct {
+	Category   string `schema:"category"`
+	Symbol     string `schema:"symbol,omitempty"`
+	BaseCoin   string `schema:"baseCoin,omitempty"`
+	OptionType string `schema:"optionType,omitempty"`
+	Limit      *int   `schema:"limit,omitempty"`
+}
+
+type GetRecentPublicTradesResponse struct {
+	BaseResponse
+	Result RecentPublicTradesResult `json:"result"`
+}
+
+type RecentPublicTradesResult struct {
+	Category string              `json:"category"`
+	List     []RecentPublicTrade `json:"list"`
+}
+
+type RecentPublicTrade struct {
+	ExecId       string `json:"execId"`
+	Symbol       string `json:"symbol"`
+	Price        string `json:"price"`
+	Size         string `json:"size"`
+	Side         string `json:"side"`
+	Time         string `json:"time"`
+	IsBlockTrade bool   `json:"isBlockTrade"`
+	IsRPITrade   bool   `json:"isRPITrade"`
+	MarkPrice    string `json:"mP"`
+	IndexPrice   string `json:"iP"`
+	MarkIv       string `json:"mIv"`
+	Iv           string `json:"iv"`
+	Seq          string `json:"seq"`
 }
 
 type AccountBalance struct {

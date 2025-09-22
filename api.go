@@ -130,7 +130,7 @@ func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 		context:   ctx,
 		wsPool:    make(map[string]chan []byte),
 		Logger:    BasicLogger("BybitApi"),
-		timeout:   10 * time.Second,
+		timeout:   20 * time.Second,
 	}
 	api.encoder = schema.NewEncoder()
 	return api

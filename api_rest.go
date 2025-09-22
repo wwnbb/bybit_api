@@ -331,6 +331,60 @@ func (r *RESTManager) GetInstrumentsInfo(params GetInstrumentsInfoParams) (*GetI
 	return &result, nil
 }
 
+func (r *RESTManager) GetAccountInfo() (*GetAccountInfoResponse, error) {
+	const path = "/v5/account/info"
+
+	reqURL := fmt.Sprintf("%s%s", r.api.BASE_REST_URL, path)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	timestamp := time.Now().UnixMilli()
+	signature, timestamp, err := genSignature(
+		"",
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result GetAccountInfoResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get wallet balance: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (r *RESTManager) GetRecentPublicTrades(params GetRecentPublicTradesParams) (*GetRecentPublicTradesResponse, error) {
+
+	const path = "/v5/market/recent-trade"
+
+	queryStr, err := r.encodeToQuery(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var result GetRecentPublicTradesResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get recent public trades: %w", err)
+	}
+
+	return &result, nil
+
+}
+
 func (r *RESTManager) GetWalletBalance(params GetWalletBalanceParams) (*GetWalletBalanceResponse, error) {
 	const path = "/v5/account/wallet-balance"
 
@@ -340,9 +394,6 @@ func (r *RESTManager) GetWalletBalance(params GetWalletBalanceParams) (*GetWalle
 	}
 
 	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
-	fmt.Println("************************reqURL************************")
-	fmt.Println(reqURL)
-
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
