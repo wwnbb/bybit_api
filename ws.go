@@ -248,6 +248,7 @@ func (m *WSManager) pingLoop(ctx context.Context) {
 				m.api.Logger.Debug("Ping message sent")
 			}
 		case <-ctx.Done():
+			m.api.Logger.Debug("Ping loop context done, exiting")
 			return
 		}
 	}
@@ -281,6 +282,7 @@ func (m *WSManager) reconnectLoop(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			log.Debug("Reconnect loop context done, exiting")
 			return
 		case <-ticker.C:
 			if delta := time.Now().Sub(m.Conn.GetLastPing()); delta > wsMaxSilentPeriod {
@@ -335,6 +337,7 @@ func (m *WSManager) readMessages(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
+			m.api.Logger.Debug("Read messages context done, exiting")
 			return
 		default:
 			if m.GetConnState() != StateConnected {

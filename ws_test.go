@@ -99,20 +99,20 @@ func TestWsManagerTradeSubscribe(t *testing.T) {
 
 func TestWsManagerKlineSubscribe(t *testing.T) {
 	api := getApi()
-	api.Inverse.Subscribe("kline.1.BTCUSD")
+	api.Spot.Subscribe("kline.1.BTCUSDT")
 	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Inverse.DataCh)
 	}
-	api.Inverse.Unsubscribe("kline.1.BTCUSD")
+	api.Spot.Unsubscribe("kline.1.BTCUSDT")
 }
 
 func TestWsManagerKlineSubscribeInverseBTCUSD(t *testing.T) {
 	api := getApi()
-	api.Inverse.Subscribe("kline.1.BTCUSD")
+	api.Linear.Subscribe("kline.1.BTCUSDT")
 	for i := 0; i < 100; i++ {
-		fmt.Println(<-api.Inverse.DataCh)
+		fmt.Println(<-api.Linear.DataCh)
 	}
-	api.Inverse.Unsubscribe("kline.1.BTCUSD")
+	api.Linear.Unsubscribe("kline.1.BTCUSDT")
 }
 
 func TestWsManagerLiquidationSubscribe(t *testing.T) {
@@ -253,6 +253,7 @@ func TestWsDisconnect(t *testing.T) {
 	if api.Spot.GetConnState() != StateDisconnected && api.Linear.api.Linear.GetConnState() != StateDisconnected {
 		t.Errorf("Error: spot connection not disconnected")
 	}
+	time.Sleep(20 * time.Second)
 }
 
 func TestWsSubscribeAll(t *testing.T) {
