@@ -311,21 +311,46 @@ func (r *RESTManager) GetOrderbook(params GetOrderbookParams) (*GetOrderbookResp
 func (r *RESTManager) GetInstrumentsInfo(params GetInstrumentsInfoParams) (*GetInstrumentsInfoResponse, error) {
 	const path = "/v5/market/instruments-info"
 
-	queryStr, err := r.encodeToQuery(params)
-	if err != nil {
-		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	buildRequest := func(params GetInstrumentsInfoParams) (*http.Request, error) {
+		queryStr, err := r.encodeToQuery(params)
+		if err != nil {
+			return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+		}
+
+		reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+
+		req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create request: %w", err)
+		}
+		return req, nil
 	}
-
-	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
-
-	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	req, err := buildRequest(params)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
+		return nil, err
 	}
 
 	var result GetInstrumentsInfoResponse
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("failed to get instruments info: %w", err)
+	}
+	cursor := result.Result.NextPageCursor
+	for cursor != "" {
+		params.Cursor = cursor
+		req, err := buildRequest(params)
+		if err != nil {
+			return nil, err
+		}
+
+		var cursorResult GetInstrumentsInfoResponse
+		if err := r.sendRequest(req, &cursorResult); err != nil {
+			return nil, fmt.Errorf("failed to get instruments info: %w", err)
+		}
+		result.Result.List = append(result.Result.List, cursorResult.Result.List...)
+		cursor = cursorResult.Result.NextPageCursor
+		if cursor == "" {
+			result.Result.NextPageCursor = cursor
+		}
 	}
 
 	return &result, nil

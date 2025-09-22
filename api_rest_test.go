@@ -455,7 +455,6 @@ func TestGetInstrumentsInfoCall(t *testing.T) {
 
 	params := GetInstrumentsInfoParams{
 		Category: "linear",
-		Symbol:   "BTCUSDT",
 	}
 
 	// для инверсного
@@ -468,7 +467,6 @@ func TestGetInstrumentsInfoCall(t *testing.T) {
 	resp, err := api.REST.GetInstrumentsInfo(params)
 
 	fmt.Printf("BaseCoin: %s, QuoteCoin: %s\n", resp.Result.List[0].BaseCoin, resp.Result.List[0].QuoteCoin)
-	pp.PrettyPrint(resp)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
