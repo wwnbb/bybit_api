@@ -120,6 +120,11 @@ func (c *WSManager) SetConnected() bool {
 	return atomic.CompareAndSwapInt32((*int32)(&c.connState), int32(StateConnecting), int32(StateConnected))
 }
 
+func (c *WSManager) SetReadyForConnecting() bool {
+	atomic.StoreInt32((*int32)(&c.connState), int32(StateNew))
+	return true
+}
+
 // getReqId generates a request id for a given topic
 func (m *WSManager) getReqId(topic string) string {
 	if n, exist := m.requestIds.Get(topic); exist {
@@ -482,7 +487,7 @@ func (m *WSManager) close() error {
 			return m.Conn.Close()
 		}
 	}
-
+	m.SetReadyForConnecting()
 	return nil
 }
 
