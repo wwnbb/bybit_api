@@ -2,6 +2,7 @@ package bybit_api
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -37,5 +38,21 @@ func TestNewApi(t *testing.T) {
 	}
 	if api.Linear.url != WS_URL_LINEAR {
 		t.Fatalf("URls don't match %s != %s", api.Linear.url, WS_URL_LINEAR)
+	}
+}
+
+func TestApiDisconnect(t *testing.T) {
+	api := getApi()
+	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Colud not connect to ws %v", err)
+	}
+	go api.Disconnect()
+	for i := 0; i < 1000; i++ {
+		data, ok := <-api.Spot.DataCh
+		if !ok {
+			return
+		}
+		fmt.Println(data)
 	}
 }

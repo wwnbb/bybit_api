@@ -1,8 +1,11 @@
 module github.com/wwnbb/bybit_api
 
-go 1.22.5
+go 1.23
+
+toolchain go1.24.7
 
 require (
+	github.com/coder/websocket v1.8.14
 	github.com/dustinxie/lockfree v0.0.0-20210712051436-ed0ed42fd0d6
 	github.com/goccy/go-json v0.10.3
 	github.com/google/uuid v1.6.0

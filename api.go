@@ -35,6 +35,7 @@ var ERR_TRADING_STREAMS_NOT_SUPPORTED = errors.New("Trading streams not supporte
 type BybitApi struct {
 	ApiKey     string
 	ApiSecret  string
+	contextRef context.Context
 	context    context.Context
 	cancelFunc context.CancelFunc
 	timeout    time.Duration
@@ -125,6 +126,7 @@ func (b *BybitApi) ConfigureTestNetUrls() {
 }
 
 func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
+	var contextRef context.Context = ctx
 	ctx, cancel := context.WithCancel(ctx)
 	api := &BybitApi{
 		ApiKey:     apiKey,
@@ -135,6 +137,7 @@ func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 		Logger:     BasicLogger("BybitApi"),
 		timeout:    20 * time.Second,
 	}
+	api.contextRef = contextRef
 	api.encoder = schema.NewEncoder()
 	return api
 
@@ -149,13 +152,10 @@ func (b *BybitApi) Disconnect() {
 		b.Trade,
 		b.Private,
 	} {
-		err := m.close()
-		if err != nil {
-			// TODO: return errors instead of logging out
-			b.Logger.Error("Failed to disconnect: %v", err)
-		}
-		b.cancelFunc()
+		m.close()
 	}
+	b.cancelFunc()
+	b.context, b.cancelFunc = context.WithCancel(b.contextRef)
 }
 
 // GenSignature generates an HMAC SHA256 signature for API authentication using the provided parameters.
