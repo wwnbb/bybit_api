@@ -14,7 +14,7 @@ import (
 	"github.com/dustinxie/lockfree"
 	json "github.com/goccy/go-json"
 	"github.com/google/uuid"
-	gws "github.com/gorilla/websocket"
+	"nhooyr.io/websocket"
 	pp "github.com/wwnbb/pprint"
 )
 
@@ -27,10 +27,10 @@ const (
 )
 
 // WSConnection represents a websocket connection,
-// it embeds the gorilla websocket connection
+// it embeds the coder websocket connection  
 // creation done in connect method of WSManager
 type WSConnection struct {
-	*gws.Conn
+	*websocket.Conn
 	ctx        context.Context
 	cancel     context.CancelFunc
 	lastPing   time.Time
@@ -59,9 +59,15 @@ func (c *WSManager) GetConnState() ConnectionState {
 }
 
 func (c *WSConnection) WriteJSONThreadSafe(v interface{}) error {
-	c.writeMu.Lock()
+	c.writeMu.Lock()  
 	defer c.writeMu.Unlock()
-	return c.WriteJSON(v)
+	
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	
+	return c.Write(c.ctx, websocket.MessageText, data)
 }
 
 type WsMsg struct {
@@ -193,7 +199,7 @@ func (m *WSManager) connect(ctx context.Context) error {
 
 	m.api.Logger.Info("Connecting to %s", m.url)
 	connCtx, cancel := context.WithCancel(ctx)
-	wsConn, _, err := gws.DefaultDialer.DialContext(connCtx, m.url, nil)
+	wsConn, _, err := websocket.Dial(connCtx, m.url, nil)
 	if err != nil {
 		m.SetDisconnectedFromConnecting()
 		cancel()
@@ -334,7 +340,7 @@ func (m *WSManager) readMessages(ctx context.Context) {
 			m.api.Logger.Error("recovered from panic in readMessages: %v", r)
 		}
 		if m.Conn != nil {
-			m.Conn.Close()
+			m.Conn.Close(websocket.StatusInternalError, "read loop error")
 		}
 		m.SetDisconnectedFromConnected()
 	}()
@@ -358,11 +364,10 @@ func (m *WSManager) readMessages(ctx context.Context) {
 					}
 				}()
 
-				_, message, err := m.Conn.ReadMessage()
+				_, message, err := m.Conn.Read(ctx)
 				if err != nil {
-					if gws.IsUnexpectedCloseError(err,
-						gws.CloseGoingAway,
-						gws.CloseAbnormalClosure) {
+					if websocket.CloseStatus(err) != websocket.StatusNormalClosure &&
+						websocket.CloseStatus(err) != websocket.StatusGoingAway {
 						m.api.Logger.Error("read error: %v", err)
 					}
 					m.SetDisconnectedFromConnected()
@@ -482,10 +487,12 @@ func (m *WSManager) close() error {
 	}
 
 	if m.Conn != nil {
+		// Cancel the context first to signal shutdown
 		m.Conn.cancel()
-		if m.Conn != nil {
-			return m.Conn.Close()
-		}
+		// Close the websocket connection with proper status
+		err := m.Conn.Close(websocket.StatusNormalClosure, "closing connection")
+		m.SetReadyForConnecting()
+		return err
 	}
 	m.SetReadyForConnecting()
 	return nil

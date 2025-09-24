@@ -8,9 +8,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
-	github.com/gorilla/websocket v1.5.3
 	github.com/wwnbb/pprint v0.0.4
 	github.com/wwnbb/ptr v1.0.2
+	nhooyr.io/websocket v1.8.17
 )
 
 require github.com/dchest/siphash v1.2.2 // indirect
