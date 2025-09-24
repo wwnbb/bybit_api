@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
+	"nhooyr.io/websocket"
 )
 
 type HTTPResponse struct {
@@ -22,7 +22,7 @@ type HTTPResponse struct {
 type ApiMockServer struct {
 	wsServer    *http.Server
 	httpServer  *http.Server
-	upgrader    websocket.Upgrader
+	upgrader    *http.Server // Placeholder for compatibility
 	wsAddr      string
 	httpAddr    string
 	wsPort      int
@@ -45,11 +45,7 @@ type ApiMockServer struct {
 func NewFreedomApiMockServer() *ApiMockServer {
 	ctx, cancel := context.WithCancel(context.Background())
 	return &ApiMockServer{
-		upgrader: websocket.Upgrader{
-			ReadBufferSize:  1024,
-			WriteBufferSize: 1024,
-			CheckOrigin:     func(r *http.Request) bool { return true },
-		},
+		upgrader:  nil, // nhooyr.io/websocket doesn't use upgrader pattern
 		WsInput:   make(chan []byte, 100),
 		WsOutput:  make(chan []byte, 100),
 		HTTPInput: make(chan HTTPResponse, 100),
@@ -163,7 +159,7 @@ func (s *ApiMockServer) Stop() error {
 	defer s.mu.Unlock()
 
 	for conn := range s.wsConns {
-		conn.Close()
+		conn.Close(websocket.StatusNormalClosure, "server shutdown")
 		delete(s.wsConns, conn)
 	}
 
@@ -185,7 +181,7 @@ func (s *ApiMockServer) Stop() error {
 }
 
 func (s *ApiMockServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := s.upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Accept(w, r, nil)
 	if err != nil {
 		log.Println(err)
 		return
@@ -199,7 +195,7 @@ func (s *ApiMockServer) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 		s.mu.Lock()
 		delete(s.wsConns, conn)
 		s.mu.Unlock()
-		conn.Close()
+		conn.Close(websocket.StatusNormalClosure, "connection closed")
 	}()
 
 	for {
@@ -207,7 +203,7 @@ func (s *ApiMockServer) handleWebSocket(w http.ResponseWriter, r *http.Request) 
 		case <-s.ctx.Done():
 			return
 		default:
-			_, message, err := conn.ReadMessage()
+			_, message, err := conn.Read(s.ctx)
 			log.Println("Received message:", string(message))
 			if err != nil {
 				log.Println("read error:", err)
@@ -227,11 +223,11 @@ func (s *ApiMockServer) broadcastRoutine() {
 		case message := <-s.WsInput:
 			s.mu.Lock()
 			for conn := range s.wsConns {
-				err := conn.WriteMessage(websocket.TextMessage, message)
+				err := conn.Write(s.ctx, websocket.MessageText, message)
 				if err != nil {
 					log.Println("write error:", err)
 					delete(s.wsConns, conn)
-					conn.Close()
+					conn.Close(websocket.StatusInternalError, "write error")
 				}
 			}
 			s.mu.Unlock()
