@@ -263,10 +263,22 @@ func TestWsSubscribeAll(t *testing.T) {
 	api.Private.Subscribe("position")
 	api.Private.Subscribe("wallet")
 	api.Private.Subscribe("order")
+	api.Linear.Subscribe("orderbook.50.BTCUSDT")
+	api.Linear.Subscribe("publicTrade.BTCUSDT")
+	api.Linear.Subscribe("kline.1.BTCUSDT")
+	api.Linear.Subscribe("tickers.BTCUSDT")
+
+	api.Linear.Subscribe("orderbook.50.ASTERUSDT")
+	api.Linear.Subscribe("publicTrade.ASTERUSDT")
+	api.Linear.Subscribe("kline.1.ASTERUSDT")
+	api.Linear.Subscribe("tickers.ASTERUSDT")
+	api.Linear.Subscribe("allLiquidation.ASTERUSDT")
 	for {
-		data := <-api.Private.DataCh
-		fmt.Println("++++++++++++++++++++++++++++++++++++++")
-		pp.PrettyPrint(data)
-		fmt.Println("\n++++++++++++++++++++++++++++++++++++++")
+		select {
+		case data := <-api.Linear.DataCh:
+			pp.PrettyPrint(data)
+		case data := <-api.Private.DataCh:
+			pp.PrettyPrint(data)
+		}
 	}
 }
