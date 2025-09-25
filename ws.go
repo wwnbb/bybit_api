@@ -54,13 +54,13 @@ type WSConnection struct {
 	pingMu  sync.Mutex
 }
 
-func (c *WSConnection) GetLastPing() time.Time {
+func (c *WSConnection) getLastPing() time.Time {
 	c.pingMu.Lock()
 	defer c.pingMu.Unlock()
 	return c.lastPing
 }
 
-func (c *WSConnection) SetLastPing(t time.Time) {
+func (c *WSConnection) setLastPing(t time.Time) {
 	c.pingMu.Lock()
 	defer c.pingMu.Unlock()
 	c.lastPing = t
@@ -78,13 +78,6 @@ func (c *WSConnection) WriteJSON(v any) error {
 	defer cancel()
 
 	return wsjson.Write(ctx, c.Conn, v)
-}
-
-func (c *WSConnection) ReadJSON(v any) error {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
-	defer cancel()
-
-	return wsjson.Read(ctx, c.Conn, &v)
 }
 
 type WsMsg struct {
@@ -137,10 +130,10 @@ func (m *WSManager) SetConnecting() bool {
 
 func (m *WSManager) SetReconnecting() bool {
 	m.api.Logger.Debug("SetReconnecting: %s -> %s", m.GetConnState(), StateConnecting)
-	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateDisconnected), int32(StateConnecting))
+	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateReconnecting), int32(StateConnecting))
 }
 
-func (m *WSManager) SetDisconnectedFromConnected(msg ...string) bool {
+func (m *WSManager) SetReconnectingFromConnected(msg ...string) bool {
 	if m == nil {
 		return false
 	}
@@ -148,16 +141,16 @@ func (m *WSManager) SetDisconnectedFromConnected(msg ...string) bool {
 	for _, s := range msg {
 		msgStr += s + " "
 	}
-	m.api.Logger.Debug("SetDisconnectedFromConnected: %s -> %s ()", m.GetConnState(), StateDisconnected, msgStr)
-	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnected), int32(StateDisconnected))
+	m.api.Logger.Debug("SetReconnectingFromConnected: %s -> %s ()", m.GetConnState(), StateReconnecting, msgStr)
+	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnected), int32(StateReconnecting))
 }
 
-func (m *WSManager) SetDisconnectedFromConnecting() bool {
+func (m *WSManager) SetReconnectingFromConnecting() bool {
 	if m == nil {
 		return false
 	}
-	m.api.Logger.Debug("SetDisconnectedFromConnecting: %s -> %s", m.GetConnState(), StateDisconnected)
-	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnecting), int32(StateDisconnected))
+	m.api.Logger.Debug("SetReconnectingFromConnecting: %s -> %s", m.GetConnState(), StateReconnecting)
+	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnecting), int32(StateReconnecting))
 }
 
 func (m *WSManager) SetConnected() bool {
@@ -168,9 +161,12 @@ func (m *WSManager) SetConnected() bool {
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnecting), int32(StateConnected))
 }
 
-func (m *WSManager) SetReadyForConnecting() bool {
-	atomic.StoreInt32((*int32)(&m.connState), int32(StateNew))
-	m.api.Logger.Debug("SetReadyForConnecting: %s -> %s", m.GetConnState(), StateNew)
+func (m *WSManager) SetDisconnected() bool {
+	if m == nil {
+		return false
+	}
+	m.api.Logger.Debug("SetConnected: %s -> %s", m.GetConnState(), StateConnected)
+	atomic.StoreInt32((*int32)(&m.connState), int32(StateDisconnected))
 	return true
 }
 
@@ -241,8 +237,8 @@ func (m *WSManager) connect() error {
 	switch currentState {
 	case StateNew:
 		transitionOk = m.SetConnecting()
-	case StateDisconnected:
-		transitionOk = m.SetReconnecting()
+	case StateReconnecting:
+		transitionOk = m.SetConnecting()
 	default:
 		return fmt.Errorf("cannot connect from state %s", currentState)
 	}
@@ -279,7 +275,7 @@ func (m *WSManager) connect() error {
 
 	wsConn, _, err := websocket.Dial(dialCtx, m.url, opts)
 	if err != nil {
-		m.SetDisconnectedFromConnecting()
+		m.SetReconnectingFromConnecting()
 		return fmt.Errorf("websocket dial failed: %w", err)
 	}
 
@@ -313,7 +309,7 @@ func (m *WSManager) connect() error {
 			return fmt.Errorf("api key and secret required for private websocket")
 		}
 		if err := m.sendAuth(); err != nil {
-			m.SetDisconnectedFromConnected("Send Auth error")
+			m.SetReconnectingFromConnected("Send Auth error")
 			return fmt.Errorf("failed to authenticate: %w", err)
 		}
 	}
@@ -341,7 +337,7 @@ func (m *WSManager) pingLoop() {
 			m.api.Logger.Debug("Ping loop context done, exiting")
 			return
 		case <-ticker.C:
-			if m.GetConnState() == StateDisconnected {
+			if m.GetConnState() == StateReconnecting {
 				m.api.Logger.Debug("Disconnected, skipping ping")
 				time.Sleep(1 * time.Second)
 				continue
@@ -352,7 +348,7 @@ func (m *WSManager) pingLoop() {
 			}
 			err := conn.WriteJSON(payload)
 			if err != nil {
-				m.SetDisconnectedFromConnected("PingLoop error")
+				m.SetReconnectingFromConnected("PingLoop error")
 				conn.cancel()
 				m.api.Logger.Error("failed to send ping message: %v", err)
 				continue
@@ -405,12 +401,12 @@ func (m *WSManager) reconnectLoop() {
 			if conn == nil {
 				continue
 			}
-			if delta := time.Now().Sub(conn.GetLastPing()); m.GetConnState() == StateConnected && delta > wsMaxSilentPeriod {
+			if delta := time.Now().Sub(conn.getLastPing()); m.GetConnState() == StateConnected && delta > wsMaxSilentPeriod {
 				m.api.Logger.Error("No ping received for %v, %v, reconnecting...", wsMaxSilentPeriod, delta)
-				m.SetDisconnectedFromConnected("ReconnectLoop: ping timeout")
+				m.SetReconnectingFromConnected("ReconnectLoop: ping timeout")
 			}
 
-			if m.GetConnState() != StateDisconnected {
+			if m.GetConnState() != StateReconnecting {
 				continue
 			}
 
@@ -433,7 +429,7 @@ func (m *WSManager) reconnectLoop() {
 
 			err = m.ResubscribeAll()
 			if err != nil {
-				m.SetDisconnectedFromConnected("ReconnectLoop: ResubscribeAll failed")
+				m.SetReconnectingFromConnected("ReconnectLoop: ResubscribeAll failed")
 				m.getConn().cancel()
 				log.Error("failed to resubscribe after reconnect: %v", err)
 				continue
@@ -473,51 +469,37 @@ func (m *WSManager) readMessages() {
 				defer func() {
 					if r := recover(); r != nil {
 						m.api.Logger.Error("recovered from panic in ReadMessage: %v", r)
-						m.SetDisconnectedFromConnected("readMessages: Panic recover")
+						m.SetReconnectingFromConnected("readMessages: Panic recover")
 					}
 				}()
 
-				readCtx, cancel := context.WithTimeout(conn.ctx, time.Second*10)
-				defer cancel()
+				readDataCtx, cancelData := context.WithTimeout(conn.ctx, time.Second*5)
+				defer cancelData()
 
-				_, r, err := conn.Reader(readCtx)
+				_, reader, err := conn.Conn.Reader(readDataCtx)
 				if err != nil {
-					if strings.Contains(err.Error(), "no route to host") ||
-						strings.Contains(err.Error(), "connection refused") ||
-						strings.Contains(err.Error(), "broken pipe") ||
-						strings.Contains(err.Error(), "failed to get reader") ||
-						strings.Contains(err.Error(), "reset by peer") {
-						m.api.Logger.Error("Network error detected: %v", err)
-						m.SetDisconnectedFromConnected("Network error")
+					if strings.Contains(err.Error(), "context deadline exceeded") {
+						m.api.Logger.Error("read timeout")
+						m.SetReconnectingFromConnected("Read timeout")
+						return
+					} else if strings.Contains(err.Error(), "context canceled") {
 						return
 					}
-					m.api.Logger.Error("failed to get topic: %v", err)
+					m.api.Logger.Error("failed to get reader: %v", err)
 					return
 				}
 
 				b := bpool.Get()
 				defer bpool.Put(b)
 
-				readDataCtx, cancelData := context.WithTimeout(conn.ctx, time.Second*5)
-				defer cancelData()
-
-				done := make(chan struct{})
-				var readErr error
-
-				go func() {
-					_, readErr = b.ReadFrom(r)
-					close(done)
-				}()
-
-				select {
-				case <-done:
-					if readErr != nil {
-						m.api.Logger.Error("failed to read message: %v", readErr)
+				_, err = b.ReadFrom(reader)
+				if err != nil {
+					if strings.Contains(err.Error(), "context deadline exceeded") {
+						m.api.Logger.Error("read timeout")
+						m.SetReconnectingFromConnected("Read timeout")
 						return
 					}
-				case <-readDataCtx.Done():
-					m.api.Logger.Error("read timeout")
-					m.SetDisconnectedFromConnected("Read timeout")
+					m.api.Logger.Error("failed to read message: %v", err)
 					return
 				}
 
@@ -539,7 +521,7 @@ func (m *WSManager) readMessages() {
 				serializedMsg := WsMsg{Topic: heardersSerialized.Topic, Data: serialized}
 
 				if heardersSerialized.Op == "ping" || heardersSerialized.Op == "pong" {
-					conn.SetLastPing(time.Now())
+					conn.setLastPing(time.Now())
 					return
 				}
 
@@ -628,12 +610,16 @@ func (m *WSManager) close() error {
 	m.subscriptionsMu.Lock()
 	defer m.subscriptionsMu.Unlock()
 
-	for topic := range m.subscriptions {
-		delete(m.subscriptions, topic)
+	conn := m.getConn()
+	if conn != nil {
+		if conn.cancel != nil {
+			conn.cancel()
+		}
+		if conn.Conn != nil {
+			conn.Conn.CloseNow()
+		}
 	}
-
-	m.getConn().CloseNow()
-	m.SetReadyForConnecting()
+	m.SetDisconnected()
 	return nil
 }
 

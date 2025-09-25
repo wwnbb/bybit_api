@@ -259,7 +259,8 @@ func TestWsDisconnect(t *testing.T) {
 func TestWsSubscribeAll(t *testing.T) {
 	api := getApi()
 	api.Logger.SetLogLevel(LogLevelInfo)
-	api.Private.Subscribe("execution")
+	error := api.Private.Subscribe("execution")
+	fmt.Println("Subscribe execution error:", error)
 	api.Private.Subscribe("position")
 	api.Private.Subscribe("wallet")
 	api.Private.Subscribe("order")
@@ -273,7 +274,8 @@ func TestWsSubscribeAll(t *testing.T) {
 	api.Linear.Subscribe("kline.1.ASTERUSDT")
 	api.Linear.Subscribe("tickers.ASTERUSDT")
 	api.Linear.Subscribe("allLiquidation.ASTERUSDT")
-	for {
+	time.Sleep(1 * time.Second)
+	for i := 0; i < 100; i++ {
 		select {
 		case data := <-api.Linear.DataCh:
 			pp.PrettyPrint(data)
@@ -281,4 +283,6 @@ func TestWsSubscribeAll(t *testing.T) {
 			pp.PrettyPrint(data)
 		}
 	}
+	api.Disconnect()
+	time.Sleep(1 * time.Second)
 }

@@ -6,8 +6,8 @@ const (
 	StateNew ConnectionState = iota // connection error occurred, can be reconnected
 	StateConnecting
 	StateConnected
+	StateReconnecting
 	StateDisconnected
-	StateClosed
 )
 
 var states = [...]string{

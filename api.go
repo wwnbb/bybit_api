@@ -155,7 +155,6 @@ func (b *BybitApi) Disconnect() {
 		m.close()
 	}
 	b.cancelFunc()
-	b.context, b.cancelFunc = context.WithCancel(b.contextRef)
 }
 
 // GenSignature generates an HMAC SHA256 signature for API authentication using the provided parameters.
