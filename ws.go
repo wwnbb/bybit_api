@@ -191,7 +191,7 @@ func newWSManager(api *BybitApi, wsType WebSocketT, url string) *WSManager {
 		url:           url,
 		connState:     StateNew,
 
-		DataCh: make(chan WsMsg, 5000),
+		DataCh: make(chan WsMsg, 100),
 	}
 	return wsm
 }
@@ -413,7 +413,7 @@ func (m *WSManager) reconnectLoop() {
 			m.api.Logger.Debug("reconnecting websocket")
 			err := m.connect()
 			if err != nil {
-				m.api.Logger.Error("failed to reconnect: %v", err)
+				m.api.Logger.Error("reconnect loop: failed to reconnect %v", err)
 
 				select {
 				case <-time.After(backoff):
@@ -473,14 +473,12 @@ func (m *WSManager) readMessages() {
 					}
 				}()
 
-				readDataCtx, cancelData := context.WithTimeout(conn.ctx, time.Second*5)
+				readDataCtx, cancelData := context.WithCancel(conn.ctx)
 				defer cancelData()
 
 				_, reader, err := conn.Conn.Reader(readDataCtx)
 				if err != nil {
 					if strings.Contains(err.Error(), "context deadline exceeded") {
-						m.api.Logger.Error("read timeout")
-						m.SetReconnectingFromConnected("Read timeout")
 						return
 					} else if strings.Contains(err.Error(), "context canceled") {
 						return

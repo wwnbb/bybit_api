@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"net/http"
+	_ "net/http/pprof"
+
 	pp "github.com/wwnbb/pprint"
 )
 
@@ -258,31 +261,91 @@ func TestWsDisconnect(t *testing.T) {
 
 func TestWsSubscribeAll(t *testing.T) {
 	api := getApi()
+	defer api.Disconnect()
 	api.Logger.SetLogLevel(LogLevelInfo)
+	api2 := getApi()
+	api2.Logger.SetLogLevel(LogLevelInfo)
+	api3 := getApi()
+	api3.Logger.SetLogLevel(LogLevelInfo)
+	api4 := getApi()
+	api4.Logger.SetLogLevel(LogLevelInfo)
+	api5 := getApi()
+	api5.Logger.SetLogLevel(LogLevelInfo)
+	api6 := getApi()
+	api6.Logger.SetLogLevel(LogLevelInfo)
+
+	go func() {
+		for {
+			fmt.Println(<-api.Private.DataCh)
+		}
+	}()
+
+	go func() {
+		for {
+			fmt.Println(<-api2.Spot.DataCh)
+		}
+	}()
+	go func() {
+		for {
+			fmt.Println(<-api2.Linear.DataCh)
+		}
+	}()
+	go func() {
+		for {
+			fmt.Println(<-api3.Linear.DataCh)
+		}
+	}()
+	go func() {
+		for {
+			fmt.Println(<-api4.Spot.DataCh)
+		}
+	}()
+	go func() {
+		for {
+			fmt.Println(<-api5.Spot.DataCh)
+		}
+	}()
+	go func() {
+		for {
+			fmt.Println(<-api6.Spot.DataCh)
+		}
+	}()
+
+	go http.ListenAndServe("localhost:6060", nil)
+	// api.Logger.SetLogLevel(LogLevelInfo)
 	error := api.Private.Subscribe("execution")
-	fmt.Println("Subscribe execution error:", error)
+	fmt.Println("Subscribe execution errkr:", error)
 	api.Private.Subscribe("position")
 	api.Private.Subscribe("wallet")
 	api.Private.Subscribe("order")
-	api.Linear.Subscribe("orderbook.50.BTCUSDT")
-	api.Linear.Subscribe("publicTrade.BTCUSDT")
-	api.Linear.Subscribe("kline.1.BTCUSDT")
-	api.Linear.Subscribe("tickers.BTCUSDT")
 
-	api.Linear.Subscribe("orderbook.50.ASTERUSDT")
-	api.Linear.Subscribe("publicTrade.ASTERUSDT")
-	api.Linear.Subscribe("kline.1.ASTERUSDT")
-	api.Linear.Subscribe("tickers.ASTERUSDT")
-	api.Linear.Subscribe("allLiquidation.ASTERUSDT")
-	time.Sleep(1 * time.Second)
-	for i := 0; i < 100; i++ {
-		select {
-		case data := <-api.Linear.DataCh:
-			pp.PrettyPrint(data)
-		case data := <-api.Private.DataCh:
-			pp.PrettyPrint(data)
-		}
-	}
-	api.Disconnect()
-	time.Sleep(1 * time.Second)
+	api2.Spot.Subscribe("orderbook.50.BTCUSDT")
+	api2.Spot.Subscribe("publicTrade.BTCUSDT")
+	api2.Spot.Subscribe("kline.1.BTCUSDT")
+	api2.Spot.Subscribe("tickers.BTCUSDT")
+
+	api2.Linear.Subscribe("orderbook.50.BTCUSDT")
+	api2.Linear.Subscribe("publicTrade.BTCUSDT")
+	api2.Linear.Subscribe("kline.1.BTCUSDT")
+	api2.Linear.Subscribe("tickers.BTCUSDT")
+
+	api3.Linear.Subscribe("orderbook.50.ASTERUSDT")
+	api3.Linear.Subscribe("publicTrade.ASTERUSDT")
+	api3.Linear.Subscribe("kline.1.ASTERUSDT")
+	api3.Linear.Subscribe("tickers.ASTERUSDT")
+
+	api4.Spot.Subscribe("orderbook.50.XPLUSDT")
+	api4.Spot.Subscribe("publicTrade.XPLUSDT")
+	api4.Spot.Subscribe("kline.1.XPLUSDT")
+	api4.Spot.Subscribe("tickers.XPLUSDT")
+
+	api5.Spot.Subscribe("orderbook.50.ASTERUSDT")
+	api5.Spot.Subscribe("publicTrade.ASTERUSDT")
+	api5.Spot.Subscribe("kline.1.ASTERUSDT")
+	api5.Spot.Subscribe("tickers.ASTERUSDT")
+
+	api6.Spot.Subscribe("kline.1.DOGEUSDT")
+	api6.Spot.Subscribe("tickers.DOGEUSDT")
+
+	time.Sleep(100 * time.Second)
 }
