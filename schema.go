@@ -592,6 +592,23 @@ type LinearInverseTicker struct {
 	Data LinearInverseTickerData `json:"data"`
 }
 
+type GetTickerParams struct {
+	Category string `schema:"category"`
+	Symbol   string `schema:"symbol,omitempty"`
+	BaseCoin string `schema:"baseCoin,omitempty"`
+	ExpDate  string `schema:"expDate,omitempty"`
+}
+
+type GetTickerResponseList struct {
+	Category string                    `json:"category"`
+	List     []LinearInverseTickerData `json:"list"`
+}
+
+type GetTickerResponse struct {
+	BaseResponse
+	Result GetTickerResponseList `json:"result"`
+}
+
 type LinearInverseTickerData struct {
 	Symbol                 string `json:"symbol"`
 	TickDirection          string `json:"tickDirection"`

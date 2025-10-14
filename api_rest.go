@@ -356,6 +356,27 @@ func (r *RESTManager) GetInstrumentsInfo(params GetInstrumentsInfoParams) (*GetI
 	return &result, nil
 }
 
+func (r *RESTManager) GetTicker(params GetTickerParams) (*GetTickerResponse, error) {
+	const path = "/v5/market/tickers"
+	queryStr, err := r.encodeToQuery(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	var result GetTickerResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get recent public trades: %w", err)
+	}
+
+	return &result, nil
+}
+
 func (r *RESTManager) GetAccountInfo() (*GetAccountInfoResponse, error) {
 	const path = "/v5/account/info"
 

@@ -617,3 +617,17 @@ func TestRecentPublicTradesCall(t *testing.T) {
 
 	pp.PrettyPrint(resp)
 }
+
+func TestGetTicker(t *testing.T) {
+	api := GetApi()
+	api.ConfigureMainNetUrls()
+	params := GetTickerParams{
+		Category: "linear",
+		Symbol:   "BTCUSDT",
+	}
+	resp, err := api.REST.GetTicker(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pp.PrettyPrint(resp)
+}
