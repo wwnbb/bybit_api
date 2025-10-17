@@ -28,7 +28,7 @@ func GetApi() *BybitApi {
 	secretKey := os.Getenv("BYBIT_SECRET_KEY")
 	ctx := context.Background()
 	api := NewBybitApi(apiKey, secretKey, ctx)
-	api.ConfigureMainNetDemoUrls()
+	api.ConfigureMainNetUrls()
 	return api
 }
 

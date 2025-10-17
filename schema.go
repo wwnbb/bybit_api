@@ -239,6 +239,45 @@ type PositionData struct {
 	Seq                    int64  `json:"seq"`
 }
 
+type OrderWebsocketCreateResponse struct {
+	ConnId     string                 `json:"connId"`
+	Data       OrderResponse          `json:"data"`
+	Header     map[string]string      `json:"header"`
+	Op         string                 `json:"op"`
+	ReqId      string                 `json:"reqId"`
+	RetCode    int                    `json:"retCode"`
+	RetExtInfo map[string]interface{} `json:"retExtInfo"`
+	RetMsg     string                 `json:"retMsg"`
+}
+
+type OrderWebsocketCancelResponse struct {
+	ConnId     string                 `json:"connId"`
+	Data       OrderResponse          `json:"data"`
+	Header     map[string]string      `json:"header"`
+	Op         string                 `json:"op"`
+	ReqId      string                 `json:"reqId"`
+	RetCode    int                    `json:"retCode"`
+	RetExtInfo map[string]interface{} `json:"retExtInfo"`
+	RetMsg     string                 `json:"retMsg"`
+}
+
+type OrderWebsocketAmendResponse struct {
+	ConnId     string                 `json:"connId"`
+	Data       OrderResponse          `json:"data"`
+	Header     map[string]string      `json:"header"`
+	Op         string                 `json:"op"`
+	ReqId      string                 `json:"reqId"`
+	RetCode    int                    `json:"retCode"`
+	RetExtInfo map[string]interface{} `json:"retExtInfo"`
+	RetMsg     string                 `json:"retMsg"`
+}
+
+// Add this wrapper struct to match what you're actually receiving
+type WebsocketMessage struct {
+	Topic string                       `json:"topic"`
+	Data  OrderWebsocketCreateResponse `json:"data"`
+}
+
 // https://bybit-exchange.github.io/docs/v5/websocket/private/order#response-parameters
 type OrderWebsocketResponse struct {
 	Id           string      `json:"id"`

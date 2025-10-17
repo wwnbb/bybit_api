@@ -58,7 +58,7 @@ type BybitApi struct {
 	Linear  *WSManager
 	Inverse *WSManager
 	Option  *WSManager
-	Trade   *WSManager
+	Trade   *TradeWSManager
 	Private *WSManager
 }
 
@@ -84,7 +84,7 @@ func (b *BybitApi) ConfigureWsUrls(privateUrl, spotUrl, linearUrl, inverseUrl, o
 	b.Linear = newWSManager(b, WS_LINEAR, b.WS_URL_LINEAR)
 	b.Inverse = newWSManager(b, WS_INVERSE, b.WS_URL_INVERSE)
 	b.Option = newWSManager(b, WS_OPTION, b.WS_URL_OPTION)
-	b.Trade = newWSManager(b, WS_TRADE, b.WS_URL_TRADE)
+	b.Trade = newTradeWSManager(b, b.WS_URL_TRADE)
 	b.Private = newWSManager(b, WS_PRIVATE, b.WS_URL_PRIVATE)
 	b.REST = NewRESTManager(b)
 }
@@ -109,7 +109,7 @@ func (b *BybitApi) ConfigureMainNetDemoUrls() {
 		MAINNET_LINEAR_WS,
 		MAINNET_INVERSE_WS,
 		MAINNET_OPTION_WS,
-		"",
+		MAINNET_TRADE_WS,
 	)
 }
 
@@ -149,11 +149,11 @@ func (b *BybitApi) Disconnect() {
 		b.Linear,
 		b.Inverse,
 		b.Option,
-		b.Trade,
 		b.Private,
 	} {
 		m.close()
 	}
+	b.Trade.close()
 	b.cancelFunc()
 }
 

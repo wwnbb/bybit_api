@@ -82,6 +82,7 @@ func (c *WSConnection) WriteJSON(v any) error {
 
 type WsMsg struct {
 	Topic string
+	Op    string
 	Data  interface{}
 }
 
@@ -510,18 +511,18 @@ func (m *WSManager) readMessages() {
 					m.api.Logger.Error("failed to get topic: %v", err)
 					return
 				}
-				serialized, err := m.serializeWsResponse(heardersSerialized.Topic, b.Bytes())
-				if err != nil {
-					m.api.Logger.Error("failed to serialize message: %v", err)
-					return
-				}
-
-				serializedMsg := WsMsg{Topic: heardersSerialized.Topic, Data: serialized}
 
 				if heardersSerialized.Op == "ping" || heardersSerialized.Op == "pong" {
 					conn.setLastPing(time.Now())
 					return
 				}
+				serialized, err := m.serializeWsResponse(heardersSerialized.Topic, heardersSerialized.Op, b.Bytes())
+				if err != nil {
+					m.api.Logger.Error("failed to serialize message: %v", err)
+					return
+				}
+
+				serializedMsg := WsMsg{Topic: heardersSerialized.Topic, Op: heardersSerialized.Op, Data: serialized}
 
 				select {
 				case m.DataCh <- serializedMsg:
@@ -534,7 +535,30 @@ func (m *WSManager) readMessages() {
 	}
 }
 
-func (m *WSManager) serializeWsResponse(topic string, data []byte) (interface{}, error) {
+func (m *WSManager) serializeWsResponse(topic, op string, data []byte) (interface{}, error) {
+	if len(topic) == 0 && len(op) != 0 {
+		switch op {
+		case "order.create":
+			var response OrderWebsocketCreateResponse
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal wallet response: %w", err)
+			}
+			return response, nil
+		case "order.cancel":
+			var response OrderWebsocketCancelResponse
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal wallet response: %w", err)
+			}
+			return response, nil
+		case "order.amend":
+			var response OrderWebsocketAmendResponse
+			if err := json.Unmarshal(data, &response); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal wallet response: %w", err)
+			}
+			return response, nil
+
+		}
+	}
 	parts := strings.Split(topic, ".")
 	mainTopic := parts[0]
 
