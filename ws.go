@@ -581,13 +581,6 @@ func (m *WSManager) serializeWsResponse(topic, op string, data []byte) (interfac
 		}
 		return response, nil
 
-	case "orderbook":
-		var response GetOrderbookResponse
-		if err := json.Unmarshal(data, &response); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal orderbook: %w", err)
-		}
-		return response, nil
-
 	case "kline":
 		var response KlineWsResponse
 		if err := json.Unmarshal(data, &response); err != nil {
