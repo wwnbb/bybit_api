@@ -631,3 +631,19 @@ func TestGetTicker(t *testing.T) {
 	}
 	pp.PrettyPrint(resp)
 }
+
+func TestSetLeverage(t *testing.T) {
+	api := GetApi()
+	api.ConfigureMainNetUrls()
+	params := SetLeverageParams{
+		Symbol:       "PROVEUSDT",
+		Category:     "linear",
+		BuyLeverage:  "24",
+		SellLeverage: "24",
+	}
+	resp, err := api.REST.SetLeverage(params)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	pp.PrettyPrint(resp)
+}

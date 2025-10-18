@@ -84,9 +84,9 @@ type AmendOrderWsSchema struct {
 	Args   []AmendOrderParams `json:"args"`
 }
 
-func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) error {
+func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) (string, error) {
 	if err := m.ensureConnected(); err != nil {
-		return err
+		return "", err
 	}
 	reqId := m.getReqId("order.create")
 	placeOrderMsg := PlaceOrderWsSchema{
@@ -96,7 +96,7 @@ func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) error {
 		Args:   []PlaceOrderParams{params},
 	}
 	m.api.Logger.Info("Placing order with reqId %s: \n%v\n", reqId, pp.PrettyFormat(placeOrderMsg))
-	return m.getConn().WriteJSON(placeOrderMsg)
+	return reqId, m.getConn().WriteJSON(placeOrderMsg)
 }
 
 func (m *TradeWSManager) CancelOrder(params CancelOrderParams) error {

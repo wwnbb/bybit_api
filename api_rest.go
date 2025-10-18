@@ -12,6 +12,7 @@ import (
 
 	json "github.com/goccy/go-json"
 	"github.com/gorilla/schema"
+	pp "github.com/wwnbb/pprint"
 )
 
 type RESTManager struct {
@@ -498,6 +499,87 @@ func (r *RESTManager) GetPositions(params GetPositionParams) (*GetPositionRespon
 	var result GetPositionResponse
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("failed to get position data: %w", err)
+	}
+
+	return &result, nil
+}
+
+func (r *RESTManager) GetOrderRealTime(params OrderRealtimeRequest) (interface{}, error) {
+	const path = "/v5/order/realtime"
+
+	queryStr, err := r.encodeToQuery(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode query parameters: %w", err)
+	}
+
+	reqURL := fmt.Sprintf("%s%s?%s", r.api.BASE_REST_URL, path, queryStr)
+
+	req, err := http.NewRequest(http.MethodGet, reqURL, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	signature, timestamp, err := genSignature(
+		queryStr,
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result interface{}
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, fmt.Errorf("failed to get position data: %w", err)
+	}
+	pp.PrettyPrint(result)
+
+	return result, nil
+}
+
+// {
+//     "category": "linear",
+//     "symbol": "BTCUSDT",
+//     "buyLeverage": "6",
+//     "sellLeverage": "6"
+//
+// }
+
+func (r *RESTManager) SetLeverage(params SetLeverageParams) (*SetLeverageResponse, error) {
+	const path = "/v5/position/set-leverage"
+
+	url := r.api.BASE_REST_URL + path
+
+	paramsJSON, err := json.Marshal(params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewBuffer(paramsJSON))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	signature, timestamp, err := genSignature(
+		params,
+		r.api.ApiKey,
+		r.api.ApiSecret,
+		RECV_WINDOW,
+		&TimeProvider{},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate signature: %w", err)
+	}
+
+	r.setAuthHeaders(req, signature, timestamp)
+
+	var result SetLeverageResponse
+	if err := r.sendRequest(req, &result); err != nil {
+		return nil, err
 	}
 
 	return &result, nil

@@ -790,3 +790,19 @@ type PositionItem struct {
 	LeverageSysUpdatedTime string `json:"leverageSysUpdatedTime"` // Timestamp of leverage system update
 	TpslMode               string `json:"tpslMode"`               // TP/SL mode, deprecated, always "Full"
 }
+
+type OrderRealtimeRequest struct {
+	Category string `json:"category"`
+	OrderId  string `json:"orderId"`
+}
+
+type SetLeverageParams struct {
+	Category     string `json:"category"`     // Contract type, only support "linear" and "inverse"
+	Symbol       string `json:"symbol"`       // Trading pair
+	BuyLeverage  string `json:"buyLeverage"`  // Buy leverage
+	SellLeverage string `json:"sellLeverage"` // Sell leverage
+}
+
+type SetLeverageResponse struct {
+	BaseResponse
+}

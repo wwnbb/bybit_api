@@ -205,10 +205,7 @@ func (m *WSManager) ensureConnected() error {
 			return fmt.Errorf("failed to establish connection: %w", err)
 		}
 		m.reconnectOnce.Do(func() { go m.reconnectLoop() })
-	} else {
-		fmt.Printf("WebSocket already connected, state: %s\n", m.GetConnState())
 	}
-
 	return nil
 }
 
