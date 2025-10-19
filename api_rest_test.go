@@ -64,7 +64,7 @@ func TestGetOrderRT(t *testing.T) {
 		Symbol:   "LTCUSD",
 		OpenOnly: &openOnly,
 		Limit:    &limit,
-		OrderId:  "7c1aac82-b3ac-4b97-8375-6a446e269c05",
+		OrderId:  "c55fd167",
 	})
 	if err != nil {
 		t.Error(err)

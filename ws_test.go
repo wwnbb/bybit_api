@@ -182,10 +182,14 @@ func TestPositionWs(t *testing.T) {
 
 func TestOrdersWs(t *testing.T) {
 	api := getApi()
+	api.ConfigureMainNetUrls()
+	api.Logger.SetLogLevel(LogLevelInfo)
 	api.Private.Subscribe("order")
-	for i := 0; i < 100; i++ {
-		_ = <-api.Private.DataCh
-		fmt.Println("")
+	api.Private.Subscribe("position")
+	api.Private.Subscribe("wallet")
+	api.Private.Subscribe("execution")
+	for {
+		fmt.Println(pp.PrettyFormat(<-api.Private.DataCh))
 	}
 }
 
