@@ -55,7 +55,7 @@ func (r *RESTManager) sendRequest(req *http.Request, result interface{}) error {
 
 	req = req.WithContext(ctx)
 
-	r.logger.Debug("Sending request to: %s", req.URL.String())
+	r.logger.Debug("Sending request", "url", req.URL.String())
 	resp, err := client.Do(req)
 	if err != nil {
 		return fmt.Errorf("failed to send request: %w", err)
@@ -67,7 +67,7 @@ func (r *RESTManager) sendRequest(req *http.Request, result interface{}) error {
 		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	r.logger.Debug("Response status: %d", resp.StatusCode)
+	r.logger.Debug("Response received", "status", resp.StatusCode)
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
