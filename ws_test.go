@@ -308,7 +308,6 @@ func TestWsSubscribeAll(t *testing.T) {
 	}()
 
 	go http.ListenAndServe("localhost:6060", nil)
-	// api.Logger.SetLogLevel(LogLevelInfo)
 	error := api.Private.Subscribe("execution")
 	fmt.Println("Subscribe execution errkr:", error)
 	api.Private.Subscribe("position")
