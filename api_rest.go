@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -17,7 +18,7 @@ import (
 
 type RESTManager struct {
 	api     *BybitApi
-	logger  Logger
+	logger  *slog.Logger
 	timeout time.Duration
 
 	encoder *schema.Encoder
