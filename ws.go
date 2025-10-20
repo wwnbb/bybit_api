@@ -125,12 +125,12 @@ func (m *WSManager) setConn(conn *WSConnection) {
 
 // Transition from New to Connecting
 func (m *WSManager) SetConnecting() bool {
-	m.api.Logger.Debug("SetConnecting: %s -> %s", m.GetConnState(), StateConnecting)
+	m.api.Logger.Debug("SetConnecting", "from", m.GetConnState(), "to", StateConnecting)
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateNew), int32(StateConnecting))
 }
 
 func (m *WSManager) SetReconnecting() bool {
-	m.api.Logger.Debug("SetReconnecting: %s -> %s", m.GetConnState(), StateConnecting)
+	m.api.Logger.Debug("SetReconnecting", "from", m.GetConnState(), "to", StateConnecting)
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateReconnecting), int32(StateConnecting))
 }
 
@@ -142,7 +142,7 @@ func (m *WSManager) SetReconnectingFromConnected(msg ...string) bool {
 	for _, s := range msg {
 		msgStr += s + " "
 	}
-	m.api.Logger.Debug("SetReconnectingFromConnected: %s -> %s ()", m.GetConnState(), StateReconnecting, msgStr)
+	m.api.Logger.Debug("SetReconnectingFromConnected", "from", m.GetConnState(), "to", StateReconnecting, "reason", msgStr)
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnected), int32(StateReconnecting))
 }
 
@@ -150,7 +150,7 @@ func (m *WSManager) SetReconnectingFromConnecting() bool {
 	if m == nil {
 		return false
 	}
-	m.api.Logger.Debug("SetReconnectingFromConnecting: %s -> %s", m.GetConnState(), StateReconnecting)
+	m.api.Logger.Debug("SetReconnectingFromConnecting", "from", m.GetConnState(), "to", StateReconnecting)
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnecting), int32(StateReconnecting))
 }
 
@@ -158,7 +158,7 @@ func (m *WSManager) SetConnected() bool {
 	if m == nil {
 		return false
 	}
-	m.api.Logger.Debug("SetConnected: %s -> %s", m.GetConnState(), StateConnected)
+	m.api.Logger.Debug("SetConnected", "from", m.GetConnState(), "to", StateConnected)
 	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateConnecting), int32(StateConnected))
 }
 
@@ -166,7 +166,7 @@ func (m *WSManager) SetDisconnected() bool {
 	if m == nil {
 		return false
 	}
-	m.api.Logger.Debug("SetConnected: %s -> %s", m.GetConnState(), StateConnected)
+	m.api.Logger.Debug("SetDisconnected", "from", m.GetConnState(), "to", StateDisconnected)
 	atomic.StoreInt32((*int32)(&m.connState), int32(StateDisconnected))
 	return true
 }
@@ -217,7 +217,7 @@ func (m *WSManager) sendAuth() error {
 	h.Write([]byte(val))
 	signature := hex.EncodeToString(h.Sum(nil))
 
-	m.api.Logger.Debug("auth args: [%s, %d, %s]", m.api.ApiKey, expires, signature)
+	m.api.Logger.Debug("auth args", "apiKey", m.api.ApiKey, "expires", expires, "signature", signature)
 
 	authMessage := map[string]interface{}{
 		"req_id": m.getReqId("auth"),
@@ -245,7 +245,7 @@ func (m *WSManager) connect() error {
 		return fmt.Errorf("state transition failed from %s", currentState)
 	}
 
-	m.api.Logger.Info("Connecting to %s", m.url)
+	m.api.Logger.Info("Connecting to websocket", "url", m.url)
 
 	conn := m.getConn()
 	if conn != nil {
@@ -348,7 +348,7 @@ func (m *WSManager) pingLoop() {
 			if err != nil {
 				m.SetReconnectingFromConnected("PingLoop error")
 				conn.cancel()
-				m.api.Logger.Error("failed to send ping message: %v", err)
+				m.api.Logger.Error("failed to send ping message", "error", err)
 				continue
 			} else {
 				m.api.Logger.Debug("Ping message sent")
@@ -369,10 +369,10 @@ func (m *WSManager) ResubscribeAll() error {
 
 		err := m.sendSubscribe(topic)
 		if err != nil {
-			m.api.Logger.Error("failed to resubscribe to %s: %v", topic, err)
+			m.api.Logger.Error("failed to resubscribe", "topic", topic, "error", err)
 			return err
 		}
-		m.api.Logger.Info("Resubscribed to %s", topic)
+		m.api.Logger.Info("Resubscribed", "topic", topic)
 		time.Sleep(300 * time.Millisecond)
 	}
 	return nil
@@ -400,7 +400,7 @@ func (m *WSManager) reconnectLoop() {
 				continue
 			}
 			if delta := time.Now().Sub(conn.getLastPing()); m.GetConnState() == StateConnected && delta > wsMaxSilentPeriod {
-				m.api.Logger.Error("No ping received for %v, %v, reconnecting...", wsMaxSilentPeriod, delta)
+				m.api.Logger.Error("No ping received, reconnecting", "maxSilentPeriod", wsMaxSilentPeriod, "delta", delta)
 				m.SetReconnectingFromConnected("ReconnectLoop: ping timeout")
 			}
 
@@ -411,7 +411,7 @@ func (m *WSManager) reconnectLoop() {
 			m.api.Logger.Debug("reconnecting websocket")
 			err := m.connect()
 			if err != nil {
-				m.api.Logger.Error("reconnect loop: failed to reconnect %v", err)
+				m.api.Logger.Error("reconnect loop: failed to reconnect", "error", err)
 
 				select {
 				case <-time.After(backoff):
@@ -429,7 +429,7 @@ func (m *WSManager) reconnectLoop() {
 			if err != nil {
 				m.SetReconnectingFromConnected("ReconnectLoop: ResubscribeAll failed")
 				m.getConn().cancel()
-				log.Error("failed to resubscribe after reconnect: %v", err)
+				log.Error("failed to resubscribe after reconnect", "error", err)
 				continue
 			}
 		}
@@ -439,7 +439,7 @@ func (m *WSManager) reconnectLoop() {
 func (m *WSManager) readMessages() {
 	defer func() {
 		if r := recover(); r != nil {
-			m.api.Logger.Error("recovered from panic in readMessages: %v", r)
+			m.api.Logger.Error("recovered from panic in readMessages", "panic", r)
 		}
 	}()
 	conn := m.getConn()
@@ -466,7 +466,7 @@ func (m *WSManager) readMessages() {
 			func() {
 				defer func() {
 					if r := recover(); r != nil {
-						m.api.Logger.Error("recovered from panic in ReadMessage: %v", r)
+						m.api.Logger.Error("recovered from panic in ReadMessage", "panic", r)
 						m.SetReconnectingFromConnected("readMessages: Panic recover")
 					}
 				}()
@@ -481,7 +481,7 @@ func (m *WSManager) readMessages() {
 					} else if strings.Contains(err.Error(), "context canceled") {
 						return
 					}
-					m.api.Logger.Error("failed to get reader: %v", err)
+					m.api.Logger.Error("failed to get reader", "error", err)
 					return
 				}
 
@@ -495,7 +495,7 @@ func (m *WSManager) readMessages() {
 						m.SetReconnectingFromConnected("Read timeout")
 						return
 					}
-					m.api.Logger.Error("failed to read message: %v", err)
+					m.api.Logger.Error("failed to read message", "error", err)
 					return
 				}
 
@@ -505,7 +505,7 @@ func (m *WSManager) readMessages() {
 				}{}
 
 				if err := json.Unmarshal(b.Bytes(), &heardersSerialized); err != nil {
-					m.api.Logger.Error("failed to get topic: %v", err)
+					m.api.Logger.Error("failed to get topic", "error", err)
 					return
 				}
 
@@ -515,7 +515,7 @@ func (m *WSManager) readMessages() {
 				}
 				serialized, err := m.serializeWsResponse(heardersSerialized.Topic, heardersSerialized.Op, b.Bytes())
 				if err != nil {
-					m.api.Logger.Error("failed to serialize message: %v", err)
+					m.api.Logger.Error("failed to serialize message", "error", err)
 					return
 				}
 
@@ -523,7 +523,7 @@ func (m *WSManager) readMessages() {
 
 				select {
 				case m.DataCh <- serializedMsg:
-					m.api.Logger.Debug("received message: %s", pp.PrettyFormat(serialized))
+					m.api.Logger.Debug("received message", "data", pp.PrettyFormat(serialized))
 				default:
 					m.api.Logger.Error("message buffer full, dropping message")
 				}
@@ -642,7 +642,7 @@ func (m *WSManager) sendSubscribe(topic string) error {
 	if m.url == "" {
 		return ERR_TRADING_STREAMS_NOT_SUPPORTED
 	}
-	m.api.Logger.Debug("Subscribing to %s", topic)
+	m.api.Logger.Debug("Subscribing", "topic", topic)
 	return m.getConn().WriteJSON(map[string]interface{}{
 		"req_id": m.getReqId("subscribe"),
 		"op":     "subscribe",
@@ -692,12 +692,12 @@ func (m *WSManager) Unsubscribe(topic string) error {
 	} else if m.subscriptions[topic] == 1 {
 		delete(m.subscriptions, topic)
 	} else {
-		m.api.Logger.Error("Not subscribed to %s", topic)
+		m.api.Logger.Error("Not subscribed", "topic", topic)
 		return nil
 	}
 
 	if err := m.sendUnsubscribe(topic); err != nil {
-		m.api.Logger.Error("Failed to unsubscribe from %s: %v", topic, err)
+		m.api.Logger.Error("Failed to unsubscribe", "topic", topic, "error", err)
 	}
 
 	return nil

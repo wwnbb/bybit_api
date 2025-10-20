@@ -71,7 +71,6 @@ func TestWsManagerSubscribe(t *testing.T) {
 
 func TestWsSubscribeUnsubscribe(t *testing.T) {
 	api := getApi()
-	api.Logger.SetLogLevel(LogLevelDebug)
 	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
 	if err != nil {
 		t.Fatalf("Colud not connect to ws %v", err)
@@ -183,7 +182,6 @@ func TestPositionWs(t *testing.T) {
 func TestOrdersWs(t *testing.T) {
 	api := getApi()
 	api.ConfigureMainNetUrls()
-	api.Logger.SetLogLevel(LogLevelInfo)
 	api.Private.Subscribe("order")
 	api.Private.Subscribe("position")
 	api.Private.Subscribe("wallet")
@@ -266,17 +264,11 @@ func TestWsDisconnect(t *testing.T) {
 func TestWsSubscribeAll(t *testing.T) {
 	api := getApi()
 	defer api.Disconnect()
-	api.Logger.SetLogLevel(LogLevelInfo)
 	api2 := getApi()
-	api2.Logger.SetLogLevel(LogLevelInfo)
 	api3 := getApi()
-	api3.Logger.SetLogLevel(LogLevelInfo)
 	api4 := getApi()
-	api4.Logger.SetLogLevel(LogLevelInfo)
 	api5 := getApi()
-	api5.Logger.SetLogLevel(LogLevelInfo)
 	api6 := getApi()
-	api6.Logger.SetLogLevel(LogLevelInfo)
 
 	go func() {
 		for {
@@ -316,7 +308,6 @@ func TestWsSubscribeAll(t *testing.T) {
 	}()
 
 	go http.ListenAndServe("localhost:6060", nil)
-	// api.Logger.SetLogLevel(LogLevelInfo)
 	error := api.Private.Subscribe("execution")
 	fmt.Println("Subscribe execution errkr:", error)
 	api.Private.Subscribe("position")

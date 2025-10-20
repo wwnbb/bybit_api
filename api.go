@@ -7,6 +7,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"strconv"
 
 	"time"
@@ -50,7 +52,7 @@ type BybitApi struct {
 	WS_URL_TRADE   string
 
 	wsPool  map[string]chan []byte
-	Logger  Logger
+	Logger  *slog.Logger
 	encoder *schema.Encoder
 
 	REST    *RESTManager
@@ -62,7 +64,7 @@ type BybitApi struct {
 	Private *WSManager
 }
 
-func (b *BybitApi) SetLogger(logger Logger) {
+func (b *BybitApi) SetLogger(logger *slog.Logger) {
 	b.Logger = logger
 }
 
@@ -134,7 +136,7 @@ func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 		context:    ctx,
 		cancelFunc: cancel,
 		wsPool:     make(map[string]chan []byte),
-		Logger:     BasicLogger("BybitApi"),
+		Logger:     slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		timeout:    20 * time.Second,
 	}
 	api.contextRef = contextRef
