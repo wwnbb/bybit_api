@@ -3,6 +3,8 @@ package bybit_api
 import (
 	"fmt"
 	"strconv"
+
+	json "github.com/goccy/go-json"
 )
 
 type BaseResponse struct {
@@ -290,6 +292,41 @@ type PublicTradeData struct {
 	I    string `json:"i"`   // Trade ID
 	BT   bool   `json:"BT"`  // Whether it's a block trade
 	Seq  int64  `json:"seq"` // Sequence number
+}
+
+// OrderbookWebsocketResponse represents the websocket response for orderbook updates
+type OrderbookWebsocketResponse struct {
+	Topic string        `json:"topic"`
+	Type  string        `json:"type"`
+	Ts    int64         `json:"ts"`
+	Data  OrderbookData `json:"data"`
+	Cts   int64         `json:"cts"` // Client timestamp
+}
+
+// OrderbookData represents the orderbook data
+type OrderbookData struct {
+	S   string           `json:"s"`   // Symbol
+	B   []OrderbookLevel `json:"b"`   // Bids
+	A   []OrderbookLevel `json:"a"`   // Asks
+	U   int64            `json:"u"`   // Update ID
+	Seq int64            `json:"seq"` // Sequence number
+}
+
+// OrderbookLevel represents a single price level with price and quantity
+type OrderbookLevel struct {
+	Price    string
+	Quantity string
+}
+
+// UnmarshalJSON custom unmarshaler for OrderbookLevel
+func (o *OrderbookLevel) UnmarshalJSON(data []byte) error {
+	var arr [2]string
+	if err := json.Unmarshal(data, &arr); err != nil {
+		return err
+	}
+	o.Price = arr[0]
+	o.Quantity = arr[1]
+	return nil
 }
 
 // Add this wrapper struct to match what you're actually receiving

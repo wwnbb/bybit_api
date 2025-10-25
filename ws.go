@@ -560,6 +560,27 @@ func (m *WSManager) serializeWsResponse(topic, op string, data []byte) (interfac
 	mainTopic := parts[0]
 
 	switch mainTopic {
+	case "publicTrade":
+		if len(parts) < 2 {
+			return nil, fmt.Errorf("invalid publicTrade topic format: %s", topic)
+		}
+
+		var response PublicTradeWebsocketResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal publicTrade for %s: %w", parts[1], err)
+		}
+		return response, nil
+	case "orderbook":
+		if len(parts) < 3 {
+			return nil, fmt.Errorf("invalid orderbook topic format: %s", topic)
+		}
+
+		var response OrderbookWebsocketResponse
+		if err := json.Unmarshal(data, &response); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal orderbook for %s (depth: %s): %w", parts[2], parts[1], err)
+		}
+		return response, nil
+
 	case "wallet":
 		var response WalletWebsocketResponse
 		if err := json.Unmarshal(data, &response); err != nil {
