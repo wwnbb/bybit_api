@@ -272,6 +272,26 @@ type OrderWebsocketAmendResponse struct {
 	RetMsg     string                 `json:"retMsg"`
 }
 
+type PublicTradeWebsocketResponse struct {
+	Topic string            `json:"topic"`
+	Type  string            `json:"type"`
+	Ts    int64             `json:"ts"`
+	Data  []PublicTradeData `json:"data"`
+}
+
+// PublicTradeData represents individual trade data
+type PublicTradeData struct {
+	T    int64  `json:"T"`   // Trade timestamp in milliseconds
+	S    string `json:"s"`   // Symbol
+	Side string `json:"S"`   // Side: Buy or Sell
+	V    string `json:"v"`   // Volume
+	P    string `json:"p"`   // Price
+	L    string `json:"L"`   // Tick direction: PlusTick, ZeroPlusTick, MinusTick, ZeroMinusTick
+	I    string `json:"i"`   // Trade ID
+	BT   bool   `json:"BT"`  // Whether it's a block trade
+	Seq  int64  `json:"seq"` // Sequence number
+}
+
 // Add this wrapper struct to match what you're actually receiving
 type WebsocketMessage struct {
 	Topic string                       `json:"topic"`

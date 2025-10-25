@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"log/slog"
 	"net/http"
 	_ "net/http/pprof"
 
@@ -172,6 +173,8 @@ func TestWsMultiConnection(t *testing.T) {
 
 func TestPositionWs(t *testing.T) {
 	api := getApi()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	api.SetLogger(logger)
 	api.Private.Subscribe("position")
 	for i := 0; i < 100; i++ {
 		data := <-api.Private.DataCh
@@ -181,10 +184,9 @@ func TestPositionWs(t *testing.T) {
 
 func TestOrdersWs(t *testing.T) {
 	api := getApi()
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	api.SetLogger(logger)
 	api.ConfigureMainNetUrls()
-	api.Private.Subscribe("order")
-	api.Private.Subscribe("position")
-	api.Private.Subscribe("wallet")
 	api.Private.Subscribe("execution")
 	for {
 		fmt.Println(pp.PrettyFormat(<-api.Private.DataCh))
