@@ -171,6 +171,14 @@ func (m *WSManager) SetDisconnected() bool {
 	return true
 }
 
+func (m *WSManager) SetReconnectingFromDisconnected() bool {
+	if m == nil {
+		return false
+	}
+	m.api.Logger.Debug("SetReconnectingFromDisconnected", "from", m.GetConnState(), "to", StateReconnecting)
+	return atomic.CompareAndSwapInt32((*int32)(&m.connState), int32(StateDisconnected), int32(StateReconnecting))
+}
+
 // getReqId generates a request id for a given topic
 func (m *WSManager) getReqId(topic string) string {
 	if n, exist := m.requestIds.Get(topic); exist {
@@ -236,7 +244,9 @@ func (m *WSManager) connect() error {
 	case StateNew:
 		transitionOk = m.SetConnecting()
 	case StateReconnecting:
-		transitionOk = m.SetConnecting()
+		transitionOk = m.SetReconnecting()
+	case StateDisconnected:
+		transitionOk = m.SetReconnectingFromDisconnected() && m.SetReconnecting()
 	default:
 		return fmt.Errorf("cannot connect from state %s", currentState)
 	}
