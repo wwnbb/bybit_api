@@ -209,7 +209,7 @@ func newWSManager(api *BybitApi, wsType WebSocketT, url string) *WSManager {
 func (m *WSManager) ensureConnected() error {
 	if m.GetConnState() == StateNew {
 		m.api.Logger.Info("WebSocket not connected, connecting...")
-		if err := m.connect(); err != nil {
+		if err := m.Connect(); err != nil {
 			return fmt.Errorf("failed to establish connection: %w", err)
 		}
 		m.reconnectOnce.Do(func() { go m.reconnectLoop() })
@@ -236,7 +236,7 @@ func (m *WSManager) sendAuth() error {
 	return m.getConn().WriteJSON(authMessage)
 }
 
-func (m *WSManager) connect() error {
+func (m *WSManager) Connect() error {
 	currentState := m.GetConnState()
 	var transitionOk bool
 
@@ -419,7 +419,7 @@ func (m *WSManager) reconnectLoop() {
 			}
 
 			m.api.Logger.Debug("reconnecting websocket")
-			err := m.connect()
+			err := m.Connect()
 			if err != nil {
 				m.api.Logger.Error("reconnect loop: failed to reconnect", "error", err)
 
