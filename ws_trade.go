@@ -95,7 +95,7 @@ func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) (string, error) {
 		Op:     "order.create",
 		Args:   []PlaceOrderParams{params},
 	}
-	m.api.Logger.Info("Placing order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
+	m.api.Logger.Debug("Placing order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
 	return reqId, m.getConn().WriteJSON(placeOrderMsg)
 }
 
@@ -110,7 +110,7 @@ func (m *TradeWSManager) CancelOrder(params CancelOrderParams) error {
 		Op:     "order.cancel",
 		Args:   []CancelOrderParams{params},
 	}
-	m.api.Logger.Info("Canceling order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
+	m.api.Logger.Debug("Canceling order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
 	return m.getConn().WriteJSON(placeOrderMsg)
 }
 
@@ -125,6 +125,6 @@ func (m *TradeWSManager) AmendOrder(params AmendOrderParams) error {
 		Op:     "order.amend",
 		Args:   []AmendOrderParams{params},
 	}
-	m.api.Logger.Info("Amending order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
+	m.api.Logger.Debug("Amending order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
 	return m.getConn().WriteJSON(placeOrderMsg)
 }
