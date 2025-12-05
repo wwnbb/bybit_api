@@ -491,7 +491,8 @@ func (m *WSManager) readMessages() {
 					} else if strings.Contains(err.Error(), "context canceled") {
 						return
 					}
-					m.api.Logger.Error("failed to get reader", "error", err)
+					m.api.Logger.Error("failed to get reader", "error", err, "Conn state", m.GetConnState().String())
+					time.Sleep(1 * time.Millisecond)
 					return
 				}
 
