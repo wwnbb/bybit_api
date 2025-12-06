@@ -300,6 +300,7 @@ func (m *WSManager) Connect() error {
 		apiSecret:  m.api.ApiSecret,
 	})
 	conn = m.getConn()
+	conn.SetReadLimit(-1)
 
 	defer func() {
 		if err != nil && conn != nil {
@@ -650,7 +651,7 @@ func (m *WSManager) serializeWsResponse(topic, op string, data []byte) (interfac
 	}
 }
 
-func (m *WSManager) close() error {
+func (m *WSManager) Close() error {
 	m.subscriptionsMu.Lock()
 	defer m.subscriptionsMu.Unlock()
 

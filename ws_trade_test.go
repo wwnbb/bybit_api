@@ -186,65 +186,6 @@ func TestWsCancelOrder(t *testing.T) {
 	}
 }
 
-// func TestWsPlaceOrder(t *testing.T) {
-// 	api := getApi()
-// 	go func() {
-// 		for {
-// 			fmt.Println(<-api.Trade.DataCh)
-// 		}
-// 	}()
-//
-// 	targetSecond := time.Now().Unix() + 5
-// 	latency := 50 * time.Millisecond
-//
-// 	targetTime := time.Unix(targetSecond, 0)
-// 	now := time.Now()
-//
-// 	fmt.Printf("Current time: %v (Unix: %d)\n", now.Format("15:04:05.000000"), now.Unix())
-// 	fmt.Printf("Target second: %v (Unix: %d)\n", targetTime.Format("15:04:05.000000"), targetSecond)
-//
-// 	if now.Unix() >= targetSecond {
-// 		t.Fatalf("Target second %d is in the past (current: %d)", targetSecond, now.Unix())
-// 	}
-//
-// 	// Target: 10-20ms into the target second
-// 	// We'll aim for 15ms as the midpoint, accounting for execution overhead
-//
-// 	exactTargetTime := time.Unix(targetSecond, 0)
-//
-// 	// Calculate wait duration
-// 	waitDuration := exactTargetTime.Sub(now)
-// 	waitDuration -= latency
-//
-// 	if waitDuration < 0 {
-// 		t.Fatalf("Not enough time to reach target offset in second %d", targetSecond)
-// 	}
-//
-// 	fmt.Printf("Waiting %v (%d milliseconds)...\n", waitDuration, waitDuration.Milliseconds())
-//
-// 	// Wait until target time
-// 	time.Sleep(waitDuration)
-//
-// 	// Execute order (should now be at ~10-20ms into the target second)
-// 	executeTime := time.Now()
-// 	millisIntoSecond := (executeTime.Nanosecond() / 1_000_000)
-// 	fmt.Printf("Executing order at: %v (offset: %dms into second, Unix: %d)\n",
-// 		executeTime.Format("15:04:05.000000"), millisIntoSecond, executeTime.Unix())
-//
-// 	params := PlaceOrderParams{
-// 		Symbol:      "COAIUSDT",
-// 		Side:        "Buy",
-// 		OrderType:   "limit",
-// 		Qty:         "1",
-// 		Price:       ptr.Ptr("14.25"),
-// 		Category:    "linear",
-// 		TimeInForce: ptr.Ptr("FOK"),
-// 	}
-// 	api.Trade.PlaceOrder(params)
-//
-// 	time.Sleep(5 * time.Second)
-// }
-
 func waitUntilTarget(target int64) {
 	now := time.Now()
 	fmt.Println("Current time:", time.Now().Format("15:04:05.000000"))

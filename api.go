@@ -153,9 +153,9 @@ func (b *BybitApi) Disconnect() {
 		b.Option,
 		b.Private,
 	} {
-		m.close()
+		m.Close()
 	}
-	b.Trade.close()
+	b.Trade.Close()
 	b.cancelFunc()
 }
 
