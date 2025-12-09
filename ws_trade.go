@@ -9,13 +9,13 @@ import (
 	pp "github.com/wwnbb/pprint"
 )
 
-type TradeWSManager struct {
-	WSManager
+type TradeWSBybit struct {
+	WSBybit
 }
 
-func newTradeWSManager(api *BybitApi, url string) *TradeWSManager {
+func newTradeWSManager(api *BybitApi, url string) *TradeWSBybit {
 	fmt.Printf("Trade WS URL: %s\n", url)
-	wsm := &TradeWSManager{
+	wsm := &TradeWSBybit{
 		WSManager: WSManager{
 			api:           api,
 			wsType:        WS_TRADE,
@@ -43,26 +43,6 @@ func GenerateAPIHeaders() HeaderData {
 	}
 }
 
-//	{
-//	    "reqId": "test-005",
-//	    "header": {
-//	        "X-BAPI-TIMESTAMP": "1711001595207",
-//	        "X-BAPI-RECV-WINDOW": "8000",
-//	        "Referer": "bot-001" // for api broker
-//	    },
-//	    "op": "order.create",
-//	    "args": [
-//	        {
-//	            "symbol": "ETHUSDT",
-//	            "side": "Buy",
-//	            "orderType": "Limit",
-//	            "qty": "0.2",
-//	            "price": "2800",
-//	            "category": "linear",
-//	            "timeInForce": "PostOnly"
-//	        }
-//	    ]
-//	}
 type PlaceOrderWsSchema struct {
 	ReqId  string             `json:"reqId"`
 	Header HeaderData         `json:"header"`
@@ -84,10 +64,7 @@ type AmendOrderWsSchema struct {
 	Args   []AmendOrderParams `json:"args"`
 }
 
-func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) (string, error) {
-	if err := m.ensureConnected(); err != nil {
-		return "", err
-	}
+func (m *TradeWSBybit) PlaceOrder(params PlaceOrderParams) (string, error) {
 	reqId := m.getReqId("order.create")
 	placeOrderMsg := PlaceOrderWsSchema{
 		ReqId:  reqId,
@@ -95,11 +72,11 @@ func (m *TradeWSManager) PlaceOrder(params PlaceOrderParams) (string, error) {
 		Op:     "order.create",
 		Args:   []PlaceOrderParams{params},
 	}
-	m.api.Logger.Debug("Placing order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
-	return reqId, m.getConn().WriteJSON(placeOrderMsg)
+	m.Logger.Debug("Placing order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
+	return reqId, m.SendRequest(placeOrderMsg)
 }
 
-func (m *TradeWSManager) CancelOrder(params CancelOrderParams) error {
+func (m *TradeWSBybit) CancelOrder(params CancelOrderParams) error {
 	if err := m.ensureConnected(); err != nil {
 		return err
 	}
@@ -114,7 +91,7 @@ func (m *TradeWSManager) CancelOrder(params CancelOrderParams) error {
 	return m.getConn().WriteJSON(placeOrderMsg)
 }
 
-func (m *TradeWSManager) AmendOrder(params AmendOrderParams) error {
+func (m *TradeWSBybit) AmendOrder(params AmendOrderParams) error {
 	if err := m.ensureConnected(); err != nil {
 		return err
 	}

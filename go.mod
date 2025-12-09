@@ -7,7 +7,7 @@ toolchain go1.24.7
 require (
 	github.com/coder/websocket v1.8.14
 	github.com/dustinxie/lockfree v0.0.0-20210712051436-ed0ed42fd0d6
-	github.com/goccy/go-json v0.10.3
+	github.com/goccy/go-json v0.10.5
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/schema v1.4.1
@@ -16,4 +16,7 @@ require (
 	github.com/wwnbb/ptr v1.0.2
 )
 
-require github.com/dchest/siphash v1.2.2 // indirect
+require (
+	github.com/dchest/siphash v1.2.3 // indirect
+	github.com/wwnbb/wsmanager v0.0.0-20251207061014-f0c776d51419 // indirect
+)

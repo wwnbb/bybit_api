@@ -37,7 +37,6 @@ var ERR_TRADING_STREAMS_NOT_SUPPORTED = errors.New("Trading streams not supporte
 type BybitApi struct {
 	ApiKey     string
 	ApiSecret  string
-	contextRef context.Context
 	context    context.Context
 	cancelFunc context.CancelFunc
 	timeout    time.Duration
@@ -56,12 +55,12 @@ type BybitApi struct {
 	encoder *schema.Encoder
 
 	REST    *RESTManager
-	Spot    *WSManager
-	Linear  *WSManager
-	Inverse *WSManager
-	Option  *WSManager
-	Trade   *TradeWSManager
-	Private *WSManager
+	Spot    *WSBybit
+	Linear  *WSBybit
+	Inverse *WSBybit
+	Option  *WSBybit
+	Trade   *TradeWSBybit
+	Private *WSBybit
 }
 
 func (b *BybitApi) SetLogger(logger *slog.Logger) {
@@ -128,7 +127,6 @@ func (b *BybitApi) ConfigureTestNetUrls() {
 }
 
 func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
-	var contextRef context.Context = ctx
 	ctx, cancel := context.WithCancel(ctx)
 	api := &BybitApi{
 		ApiKey:     apiKey,
@@ -139,7 +137,6 @@ func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 		Logger:     slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		timeout:    20 * time.Second,
 	}
-	api.contextRef = contextRef
 	api.encoder = schema.NewEncoder()
 	return api
 

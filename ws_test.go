@@ -64,10 +64,31 @@ func TestWsManagerSubscribe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Colud not connect to ws %v", err)
 	}
-	for i := 0; i < 1000; i++ {
+	for i := 0; i < 10; i++ {
 		fmt.Println(<-api.Spot.DataCh)
 	}
+	for len(api.Spot.api.Spot.DataCh) > 0 {
+		<-api.Spot.DataCh
+	}
 	api.Spot.Unsubscribe("orderbook.1.BTCUSDT")
+	time.Sleep(10 * time.Second)
+	api.Spot.Close()
+	time.Sleep(10 * time.Second)
+	api.Spot.Connect()
+	time.Sleep(10 * time.Second)
+	api.Spot.Close()
+	time.Sleep(10 * time.Second)
+	api.Spot.Connect()
+	time.Sleep(10 * time.Second)
+	api.Spot.Close()
+	time.Sleep(10 * time.Second)
+	api.Spot.Connect()
+	time.Sleep(10 * time.Second)
+	api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	for len(api.Spot.api.Spot.DataCh) > 0 {
+		<-api.Spot.DataCh
+	}
+	time.Sleep(10 * time.Second)
 }
 
 func TestWsSubscribeUnsubscribe(t *testing.T) {

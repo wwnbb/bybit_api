@@ -6,7 +6,6 @@ const (
 	StateNew ConnectionState = iota // connection error occurred, can be reconnected
 	StateConnecting
 	StateConnected
-	StateReconnecting
 	StateDisconnected
 )
 
@@ -15,7 +14,6 @@ var states = [...]string{
 	"Connecting",
 	"Connected",
 	"Disconnected",
-	"Closed",
 }
 
 func (s ConnectionState) String() string {
