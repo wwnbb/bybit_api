@@ -1,7 +1,6 @@
 package bybit_api
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -12,6 +11,7 @@ import (
 	_ "net/http/pprof"
 
 	pp "github.com/wwnbb/pprint"
+	"github.com/wwnbb/wsmanager/states"
 )
 
 type WSResponse struct {
@@ -30,17 +30,10 @@ type PongResponse struct {
 	Op      string `json:"op"`
 }
 
-func getApi() *BybitApi {
-	ctx := context.Background()
-	api := NewBybitApi(os.Getenv("BYBIT_API_KEY"), os.Getenv("BYBIT_SECRET_KEY"), ctx)
-	api.ConfigureMainNetDemoUrls()
-	return api
-}
-
 func TestGetReqId(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 
-	wsm := newWSManager(api, WS_LINEAR, TESTNET_SPOT_WS)
+	wsm := newWSBybit(api, WS_LINEAR, TESTNET_SPOT_WS)
 	reqId := wsm.getReqId("subscribe")
 	if reqId == "" {
 		t.Errorf("Error: reqId is empty")
@@ -59,15 +52,19 @@ func TestGetReqId(t *testing.T) {
 }
 
 func TestWsManagerSubscribe(t *testing.T) {
-	api := getApi()
-	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	api := GetApi()
+	err := api.Spot.Connect()
 	if err != nil {
-		t.Fatalf("Colud not connect to ws %v", err)
+		t.Fatalf("Could not connect to ws %v", err)
+	}
+	err = api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Could not subscribe %v", err)
 	}
 	for i := 0; i < 10; i++ {
 		fmt.Println(<-api.Spot.DataCh)
 	}
-	for len(api.Spot.api.Spot.DataCh) > 0 {
+	for len(api.Spot.DataCh) > 0 {
 		<-api.Spot.DataCh
 	}
 	api.Spot.Unsubscribe("orderbook.1.BTCUSDT")
@@ -85,21 +82,25 @@ func TestWsManagerSubscribe(t *testing.T) {
 	api.Spot.Connect()
 	time.Sleep(10 * time.Second)
 	api.Spot.Subscribe("orderbook.1.BTCUSDT")
-	for len(api.Spot.api.Spot.DataCh) > 0 {
+	for len(api.Spot.DataCh) > 0 {
 		<-api.Spot.DataCh
 	}
 	time.Sleep(10 * time.Second)
 }
 
 func TestWsSubscribeUnsubscribe(t *testing.T) {
-	api := getApi()
-	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	api := GetApi()
+	err := api.Spot.Connect()
 	if err != nil {
-		t.Fatalf("Colud not connect to ws %v", err)
+		t.Fatalf("Could not connect to ws %v", err)
 	}
 	err = api.Spot.Subscribe("orderbook.1.BTCUSDT")
 	if err != nil {
-		t.Fatalf("Colud not connect to ws %v", err)
+		t.Fatalf("Could not subscribe %v", err)
+	}
+	err = api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Could not subscribe %v", err)
 	}
 	api.Spot.Unsubscribe("orderbook.1.BTCUSDT")
 	subscribedTopics := api.Spot.GetSubscribedTopics()
@@ -113,7 +114,7 @@ func TestWsSubscribeUnsubscribe(t *testing.T) {
 }
 
 func TestWsManagerTradeSubscribe(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Spot.Subscribe("publicTrade.BTCUSDT")
 	for i := 0; i < 10; i++ {
 		fmt.Println(<-api.Spot.DataCh)
@@ -122,7 +123,7 @@ func TestWsManagerTradeSubscribe(t *testing.T) {
 }
 
 func TestWsManagerKlineSubscribe(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Spot.Subscribe("kline.1.BTCUSDT")
 	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Inverse.DataCh)
@@ -131,7 +132,7 @@ func TestWsManagerKlineSubscribe(t *testing.T) {
 }
 
 func TestWsManagerKlineSubscribeInverseBTCUSD(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Linear.Subscribe("kline.1.BTCUSDT")
 	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Linear.DataCh)
@@ -140,7 +141,7 @@ func TestWsManagerKlineSubscribeInverseBTCUSD(t *testing.T) {
 }
 
 func TestWsManagerLiquidationSubscribe(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.ConfigureTestNetUrls()
 	api.Linear.Subscribe("liquidation.BTCUSDT")
 	for i := 0; i < 10; i++ {
@@ -150,7 +151,7 @@ func TestWsManagerLiquidationSubscribe(t *testing.T) {
 }
 
 func TestWsManagerTickerSubscribe(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Spot.Subscribe("tickers.BTCUSDT")
 	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Spot.DataCh)
@@ -159,7 +160,7 @@ func TestWsManagerTickerSubscribe(t *testing.T) {
 }
 
 func TestWsManagerTickerSubscribeLinear(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Linear.Subscribe("tickers.BTCUSDT")
 	for i := 0; i < 100; i++ {
 		fmt.Println(<-api.Linear.DataCh)
@@ -168,7 +169,7 @@ func TestWsManagerTickerSubscribeLinear(t *testing.T) {
 }
 
 func TestWsConnectionPingPong(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Private.Subscribe("wallet")
 	for i := 0; i < 5; i++ {
 		data := <-api.Private.DataCh
@@ -177,7 +178,7 @@ func TestWsConnectionPingPong(t *testing.T) {
 }
 
 func TestWsMultiConnection(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Spot.Subscribe("orderbook.30.BTCUSDT")
 	api.Linear.Subscribe("orderbook.30.BTCUSDT")
 	for i := 0; i < 100; i++ {
@@ -193,7 +194,7 @@ func TestWsMultiConnection(t *testing.T) {
 }
 
 func TestPositionWs(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	api.SetLogger(logger)
 	api.Private.Subscribe("position")
@@ -204,7 +205,7 @@ func TestPositionWs(t *testing.T) {
 }
 
 func TestOrdersWs(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 	api.SetLogger(logger)
 	api.ConfigureMainNetUrls()
@@ -215,7 +216,7 @@ func TestOrdersWs(t *testing.T) {
 }
 
 func TestBalanceWs(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Private.Subscribe("wallet")
 	for i := 0; i < 1000; i++ {
 		data := <-api.Private.DataCh
@@ -226,7 +227,7 @@ func TestBalanceWs(t *testing.T) {
 }
 
 func TestExecutionWs(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Private.Subscribe("execution")
 	var counter int = 0
 	for {
@@ -240,7 +241,7 @@ func TestExecutionWs(t *testing.T) {
 }
 
 func TestTradeAuthWs(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	err := api.Trade.Subscribe("trade")
 	if err != nil {
 		t.Fatalf("Could not subscribe to trade channel: %v", err)
@@ -250,7 +251,7 @@ func TestTradeAuthWs(t *testing.T) {
 }
 
 func TestSendRequest(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	header := map[string]interface{}{
 		"X-BAPI-TIMESTAMP": time.Now().UnixNano() / 1000000,
 	}
@@ -274,24 +275,24 @@ func TestSendRequest(t *testing.T) {
 }
 
 func TestWsDisconnect(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	api.Spot.Subscribe("orderbook.1.BTCUSDT")
 	api.Linear.Subscribe("orderbook.1.BTCUSDT")
 	api.Disconnect()
-	if api.Spot.GetConnState() != StateDisconnected && api.Linear.api.Linear.GetConnState() != StateDisconnected {
+	if api.Spot.GetConnState() != states.StateDisconnected && api.Linear.GetConnState() != states.StateDisconnected {
 		t.Errorf("Error: spot connection not disconnected")
 	}
 	time.Sleep(20 * time.Second)
 }
 
 func TestWsSubscribeAll(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	defer api.Disconnect()
-	api2 := getApi()
-	api3 := getApi()
-	api4 := getApi()
-	api5 := getApi()
-	api6 := getApi()
+	api2 := GetApi()
+	api3 := GetApi()
+	api4 := GetApi()
+	api5 := GetApi()
+	api6 := GetApi()
 
 	go func() {
 		for {

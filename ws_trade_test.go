@@ -12,34 +12,15 @@ import (
 )
 
 func TestWsPlaceOrder(t *testing.T) {
-	api := getApi()
+	api := GetApi()
+	api.ConfigureMainNetUrls()
+	api.Trade.Connect()
+
 	go func() {
 		for {
-			fmt.Println(<-api.Trade.DataCh)
+			pp.PrettyPrint(<-api.Trade.DataCh)
 		}
 	}()
-
-	now := time.Now()
-
-	nanosInCurrentSecond := now.Nanosecond()
-	targetNanos := 940 * time.Millisecond
-
-	var waitDuration time.Duration
-	if nanosInCurrentSecond < int(targetNanos) {
-		// We haven't reached 900ms yet in this second
-		waitDuration = targetNanos - time.Duration(nanosInCurrentSecond)
-	} else {
-		// We've passed 900ms, wait for 900ms of next second
-		waitDuration = time.Second - time.Duration(nanosInCurrentSecond) + targetNanos
-	}
-
-	fmt.Printf("Current time: %v\n", now.Format("15:04:05.000"))
-	fmt.Printf("Waiting %v milliseconds...\n", waitDuration.Milliseconds())
-
-	// Wait until 100ms before next second
-	time.Sleep(waitDuration)
-
-	// Execute order (should now be at ~900ms mark, order hits exchange at 1-10ms into next second)
 	executeTime := time.Now()
 	fmt.Printf("Executing order at: %v\n", executeTime.Format("15:04:05.000"))
 
@@ -47,16 +28,17 @@ func TestWsPlaceOrder(t *testing.T) {
 		Symbol:    "ZBTUSDT",
 		Side:      "Sell",
 		OrderType: "Market",
-		Qty:       "15",
+		Qty:       "49",
 		Category:  "linear",
 	}
-	api.Trade.PlaceOrder(params)
+	val, err := api.Trade.PlaceOrder(params)
+	fmt.Printf("Order Req ID: %s, Error: %v\n", val, err)
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(15 * time.Second)
 }
 
 func TestGetOrderRealTime(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	val, err := api.REST.GetOrderRealTime(
 		OrderRealtimeRequest{
 			Category: "linear",
@@ -70,7 +52,7 @@ func TestGetOrderRealTime(t *testing.T) {
 }
 
 func TestWsCancelOrder(t *testing.T) {
-	api := getApi()
+	api := GetApi()
 	idChan := make(chan string, 1)
 	done := make(chan bool)
 	errChan := make(chan error, 1)
@@ -200,7 +182,7 @@ func waitUntilTarget(target int64) {
 func TestWaitUntilTarget(t *testing.T) {
 	timeUntil := int64(1760745600)
 
-	api := getApi()
+	api := GetApi()
 
 	params := PlaceOrderParams{
 		Symbol:    "",
@@ -237,7 +219,7 @@ func TestCalculateLatency(t *testing.T) {
 	OrderTimeMap := make(map[string]ExecutionTimes)
 	var OrdMutex sync.Mutex // Use sync.Mutex instead of channel
 
-	api := getApi()
+	api := GetApi()
 	params := PlaceOrderParams{
 		Symbol:    "",
 		Side:      "",

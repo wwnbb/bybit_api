@@ -25,16 +25,7 @@ func ConvertTsToHumanReadable(ts string) (time.Time, error) {
 
 func GetApi() *BybitApi {
 	apiKey := os.Getenv("BYBIT_API_KEY")
-	secretKey := os.Getenv("BYBIT_SECRET_KEY")
-	ctx := context.Background()
-	api := NewBybitApi(apiKey, secretKey, ctx)
-	api.ConfigureMainNetUrls()
-	return api
-}
-
-func GetApiProd() *BybitApi {
-	apiKey := os.Getenv("BYBIT_API_KEY_PROD")
-	secretKey := os.Getenv("BYBIT_SECRET_KEY_PROD")
+	secretKey := os.Getenv("BYBIT_API_SECRET")
 	ctx := context.Background()
 	api := NewBybitApi(apiKey, secretKey, ctx)
 	api.ConfigureMainNetUrls()
@@ -68,6 +59,7 @@ func TestGetOrderRT(t *testing.T) {
 	})
 	if err != nil {
 		t.Error(err)
+		return
 	}
 	if r.RetMsg != "OK" {
 		t.Errorf("Error: %s", r.RetMsg)
@@ -534,20 +526,6 @@ func TestGetInstrumentsInfo(t *testing.T) {
 
 func TestGetWalletBalance(t *testing.T) {
 	api := GetApi()
-	r, err := api.REST.GetWalletBalance(GetWalletBalanceParams{
-		AccountType: "UNIFIED",
-	})
-	if err != nil {
-		t.Error(err)
-	}
-	if r.RetMsg != "OK" {
-		t.Errorf("Error: %s", r.RetMsg)
-	}
-	pp.PrettyPrint(r)
-}
-
-func TestGetWalletBalanceProd(t *testing.T) {
-	api := GetApiProd()
 	r, err := api.REST.GetWalletBalance(GetWalletBalanceParams{
 		AccountType: "UNIFIED",
 	})

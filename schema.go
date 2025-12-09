@@ -14,6 +14,14 @@ type BaseResponse struct {
 	Time       int      `json:"time"`
 }
 
+func (b BaseResponse) GetRetCode() int {
+	return b.RetCode
+}
+
+func (b BaseResponse) GetRetMsg() string {
+	return b.RetMsg
+}
+
 // https://bybit-exchange.github.io/docs/v5/market/time#response-parameters
 type GetServerTimeResponse struct {
 	BaseResponse

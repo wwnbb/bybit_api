@@ -12,15 +12,8 @@ import (
 	"github.com/dustinxie/lockfree"
 	json "github.com/goccy/go-json"
 	"github.com/google/uuid"
+	pp "github.com/wwnbb/pprint"
 	"github.com/wwnbb/wsmanager"
-)
-
-const (
-	wsInitialReconnectDelay  = 5 * time.Second
-	wsMaxReconnectDelay      = 5 * time.Minute
-	wsReconnectBackoffFactor = 2.0
-	wsMaxSilentPeriod        = 30 * time.Second
-	wsPingInterval           = 10 * time.Second
 )
 
 type ResponseHeader struct {
@@ -39,19 +32,19 @@ type AuthCredentials struct {
 	ApiSecret string
 }
 
-// WSBybit manages the websocket connection
 type WSBybit struct {
-	wsmanager.WSManager
+	*wsmanager.WSManager
+	api    *BybitApi
 	wsType WebSocketT
 
 	subscriptions   map[string]int32
 	subscriptionsMu sync.RWMutex
 
-	requestIds    lockfree.HashMap
-	reconnectOnce sync.Once
-	connMu        sync.RWMutex
+	requestIds lockfree.HashMap
 
 	authCredentials AuthCredentials
+
+	DataCh chan WsMsg
 }
 
 func (m *WSBybit) getReqId(topic string) string {
@@ -66,8 +59,78 @@ func (m *WSBybit) getReqId(topic string) string {
 }
 
 func newWSBybit(api *BybitApi, wsType WebSocketT, url string) *WSBybit {
-	fmt.Printf("", api)
+	wsm := wsmanager.NewWSManager(url, api.context)
+	wsm.SetLogger(api.Logger)
 
+	ws := &WSBybit{
+		WSManager:     wsm,
+		api:           api,
+		wsType:        wsType,
+		subscriptions: make(map[string]int32),
+		requestIds:    lockfree.NewHashMap(),
+		DataCh:        make(chan WsMsg, 100),
+		authCredentials: AuthCredentials{
+			ApiKey:    api.ApiKey,
+			ApiSecret: api.ApiSecret,
+		},
+	}
+
+	go ws.processMessages()
+
+	return ws
+}
+
+func (m *WSBybit) processMessages() {
+	for {
+		select {
+		case <-m.api.context.Done():
+			return
+		case rawMsg := <-m.WSManager.DataCh:
+			msgMap, ok := rawMsg.(map[string]interface{})
+			if !ok {
+				m.Logger.Error("failed to cast message to map")
+				continue
+			}
+
+			topic := ""
+			op := ""
+			if t, ok := msgMap["topic"].(string); ok {
+				topic = t
+			}
+			if o, ok := msgMap["op"].(string); ok {
+				op = o
+			}
+
+			if op == "ping" || op == "pong" {
+				continue
+			}
+
+			rawData, err := json.Marshal(rawMsg)
+			if err != nil {
+				m.Logger.Error("failed to marshal raw message", "error", err)
+				continue
+			}
+
+			serialized, err := m.serializeWsResponse(topic, op, rawData)
+			if err != nil {
+				m.Logger.Error("failed to serialize message", "error", err, "topic", topic, "op", op)
+				continue
+			}
+
+			msg := WsMsg{
+				Topic: topic,
+				Op:    op,
+				Data:  serialized,
+			}
+
+			select {
+			case m.DataCh <- msg:
+				m.Logger.Debug("processed message", "topic", topic, "op", op, "data", pp.PrettyFormat(serialized))
+			default:
+				m.Logger.Error("message buffer full, dropping message")
+			}
+		}
+	}
 }
 
 func (m *WSBybit) SetAuthCredentials(apiKey, apiSecret string) {
@@ -78,7 +141,7 @@ func (m *WSBybit) SetAuthCredentials(apiKey, apiSecret string) {
 }
 
 func (m *WSBybit) sendAuth() error {
-	expires := time.Now().UnixNano()/1e6 + 10000
+	expires := time.Now().UnixMilli() + 10000
 	val := fmt.Sprintf("GET/realtime%d", expires)
 
 	h := hmac.New(sha256.New, []byte(m.authCredentials.ApiSecret))
@@ -93,23 +156,25 @@ func (m *WSBybit) sendAuth() error {
 		"args":   []interface{}{m.authCredentials.ApiKey, expires, signature},
 	}
 
-	return m.SendRequest(authMessage)
+	return m.WSManager.SendRequest(authMessage)
 }
 
-func (m *WSBybit) ResubscribeAll() error {
-	m.Logger.Info("Resubscribing to all topics")
-
-	time.Sleep(500 * time.Millisecond)
-	topics := m.GetSubscribedTopics()
-	for _, topic := range topics {
-		err := m.sendSubscribe(topic)
-		if err != nil {
-			m.Logger.Error("failed to resubscribe", "topic", topic, "error", err)
-			return err
-		}
-		m.Logger.Info("Resubscribed", "topic", topic)
-		time.Sleep(300 * time.Millisecond)
+func (m *WSBybit) Connect() error {
+	err := m.WSManager.Connect()
+	if err != nil {
+		return err
 	}
+
+	if m.wsType == WS_PRIVATE || m.wsType == WS_TRADE {
+		if m.authCredentials.ApiKey != "" && m.authCredentials.ApiSecret != "" {
+			time.Sleep(500 * time.Millisecond)
+			if err := m.sendAuth(); err != nil {
+				m.Logger.Error("failed to authenticate", "error", err)
+				return err
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -222,7 +287,7 @@ func (m *WSBybit) serializeWsResponse(topic, op string, data []byte) (interface{
 
 func (m *WSBybit) sendSubscribe(topic string) error {
 	m.Logger.Debug("Subscribing", "topic", topic)
-	return m.SendRequest(map[string]interface{}{
+	return m.WSManager.SendRequest(map[string]interface{}{
 		"req_id": m.getReqId("subscribe"),
 		"op":     "subscribe",
 		"args":   []string{topic},
@@ -230,15 +295,13 @@ func (m *WSBybit) sendSubscribe(topic string) error {
 }
 
 func (m *WSBybit) sendUnsubscribe(topic string) error {
-	return m.SendRequest(map[string]interface{}{
+	return m.WSManager.SendRequest(map[string]interface{}{
 		"req_id": m.getReqId("unsubscribe"),
 		"op":     "unsubscribe",
 		"args":   []string{topic},
 	})
 }
 
-// Subscribe to a topic
-// https://bybit-exchange.github.io/docs/v5/ws/connect#how-to-subscribe-to-topics
 func (m *WSBybit) Subscribe(topic string) error {
 	m.subscriptionsMu.Lock()
 	defer m.subscriptionsMu.Unlock()
@@ -275,8 +338,6 @@ func (m *WSBybit) Unsubscribe(topic string) error {
 	return nil
 }
 
-// GetSubscribedTopics returns a list of topics
-// that the client is currently subscribed to
 func (m *WSBybit) GetSubscribedTopics() []string {
 	m.subscriptionsMu.RLock()
 	defer m.subscriptionsMu.RUnlock()
@@ -288,14 +349,17 @@ func (m *WSBybit) GetSubscribedTopics() []string {
 	return topics
 }
 
+func (m *WSBybit) Close() error {
+	return m.WSManager.Close()
+}
+
 func (m *WSBybit) sendRequest(operation string, request interface{}, headers map[string]interface{}) error {
 	reqId := uuid.New().String()
 	message := map[string]interface{}{
-
 		"reqId":  reqId,
 		"header": headers,
 		"op":     operation,
 		"args":   []interface{}{request},
 	}
-	return m.SendRequest(message)
+	return m.WSManager.SendRequest(message)
 }

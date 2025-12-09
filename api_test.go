@@ -30,22 +30,26 @@ func TestNewApi(t *testing.T) {
 	if api.REST.api.BASE_REST_URL != BASE_URL {
 		t.Fatal("WRONG BASE URL")
 	}
-	if api.Spot.url != WS_URL_SPOT {
+	if api.WS_URL_SPOT != WS_URL_SPOT {
 		t.Fatal("WRONG SPOT URL")
 	}
-	if api.Spot.url != WS_URL_SPOT {
-		t.Fatalf("URls don't match %s != %s", api.Inverse.url, WS_URL_INVERSE)
+	if api.WS_URL_INVERSE != WS_URL_INVERSE {
+		t.Fatalf("URls don't match %s != %s", api.WS_URL_INVERSE, WS_URL_INVERSE)
 	}
-	if api.Linear.url != WS_URL_LINEAR {
-		t.Fatalf("URls don't match %s != %s", api.Linear.url, WS_URL_LINEAR)
+	if api.WS_URL_LINEAR != WS_URL_LINEAR {
+		t.Fatalf("URls don't match %s != %s", api.WS_URL_LINEAR, WS_URL_LINEAR)
 	}
 }
 
 func TestApiDisconnect(t *testing.T) {
-	api := getApi()
-	err := api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	api := GetApi()
+	err := api.Spot.Connect()
 	if err != nil {
-		t.Fatalf("Colud not connect to ws %v", err)
+		t.Fatalf("Could not connect to ws %v", err)
+	}
+	err = api.Spot.Subscribe("orderbook.1.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Could not subscribe %v", err)
 	}
 	go api.Disconnect()
 	for i := 0; i < 1000; i++ {

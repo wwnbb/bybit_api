@@ -81,12 +81,12 @@ func (b *BybitApi) ConfigureWsUrls(privateUrl, spotUrl, linearUrl, inverseUrl, o
 	b.WS_URL_OPTION = optionUrl
 	b.WS_URL_TRADE = tradeUrl
 
-	b.Spot = newWSManager(b, WS_SPOT, b.WS_URL_SPOT)
-	b.Linear = newWSManager(b, WS_LINEAR, b.WS_URL_LINEAR)
-	b.Inverse = newWSManager(b, WS_INVERSE, b.WS_URL_INVERSE)
-	b.Option = newWSManager(b, WS_OPTION, b.WS_URL_OPTION)
+	b.Spot = newWSBybit(b, WS_SPOT, b.WS_URL_SPOT)
+	b.Linear = newWSBybit(b, WS_LINEAR, b.WS_URL_LINEAR)
+	b.Inverse = newWSBybit(b, WS_INVERSE, b.WS_URL_INVERSE)
+	b.Option = newWSBybit(b, WS_OPTION, b.WS_URL_OPTION)
 	b.Trade = newTradeWSManager(b, b.WS_URL_TRADE)
-	b.Private = newWSManager(b, WS_PRIVATE, b.WS_URL_PRIVATE)
+	b.Private = newWSBybit(b, WS_PRIVATE, b.WS_URL_PRIVATE)
 	b.REST = NewRESTManager(b)
 }
 
@@ -143,16 +143,20 @@ func NewBybitApi(apiKey, apiSecret string, ctx context.Context) *BybitApi {
 }
 
 func (b *BybitApi) Disconnect() {
-	for _, m := range []*WSManager{
+	for _, ws := range []*WSBybit{
 		b.Spot,
 		b.Linear,
 		b.Inverse,
 		b.Option,
 		b.Private,
 	} {
-		m.Close()
+		if ws != nil && ws.WSManager != nil {
+			ws.WSManager.Close()
+		}
 	}
-	b.Trade.Close()
+	if b.Trade != nil && b.Trade.WSManager != nil {
+		b.Trade.WSManager.Close()
+	}
 	b.cancelFunc()
 }
 

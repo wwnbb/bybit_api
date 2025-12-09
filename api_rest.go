@@ -73,7 +73,21 @@ func (r *RESTManager) sendRequest(req *http.Request, result interface{}) error {
 		return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
-	return json.Unmarshal(body, result)
+	if err := json.Unmarshal(body, result); err != nil {
+		return fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	// Check for API-level errors in the response
+	if baseResp, ok := result.(interface{ GetRetCode() int }); ok {
+		if retCode := baseResp.GetRetCode(); retCode != 0 {
+			if baseRespMsg, ok := result.(interface{ GetRetMsg() string }); ok {
+				return fmt.Errorf("API error (code %d): %s", retCode, baseRespMsg.GetRetMsg())
+			}
+			return fmt.Errorf("API error code: %d", retCode)
+		}
+	}
+
+	return nil
 }
 
 func (r *RESTManager) setAuthHeaders(req *http.Request, signature string, timestamp int64) {

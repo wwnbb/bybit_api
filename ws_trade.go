@@ -1,32 +1,21 @@
 package bybit_api
 
 import (
-	"fmt"
 	"strconv"
 	"time"
 
-	"github.com/dustinxie/lockfree"
 	pp "github.com/wwnbb/pprint"
 )
 
 type TradeWSBybit struct {
-	WSBybit
+	*WSBybit
 }
 
 func newTradeWSManager(api *BybitApi, url string) *TradeWSBybit {
-	fmt.Printf("Trade WS URL: %s\n", url)
-	wsm := &TradeWSBybit{
-		WSManager: WSManager{
-			api:           api,
-			wsType:        WS_TRADE,
-			subscriptions: make(map[string]int32),
-			requestIds:    lockfree.NewHashMap(),
-			url:           url,
-			connState:     StateNew,
-
-			DataCh: make(chan WsMsg, 100),
-		}}
-	return wsm
+	ws := newWSBybit(api, WS_TRADE, url)
+	return &TradeWSBybit{
+		WSBybit: ws,
+	}
 }
 
 type HeaderData struct {
@@ -73,35 +62,29 @@ func (m *TradeWSBybit) PlaceOrder(params PlaceOrderParams) (string, error) {
 		Args:   []PlaceOrderParams{params},
 	}
 	m.Logger.Debug("Placing order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
-	return reqId, m.SendRequest(placeOrderMsg)
+	return reqId, m.WSManager.SendRequest(placeOrderMsg)
 }
 
 func (m *TradeWSBybit) CancelOrder(params CancelOrderParams) error {
-	if err := m.ensureConnected(); err != nil {
-		return err
-	}
 	reqId := m.getReqId("order.cancel")
-	placeOrderMsg := CancelOrderWsSchema{
+	cancelOrderMsg := CancelOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),
 		Op:     "order.cancel",
 		Args:   []CancelOrderParams{params},
 	}
-	m.api.Logger.Debug("Canceling order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
-	return m.getConn().WriteJSON(placeOrderMsg)
+	m.Logger.Debug("Canceling order", "reqId", reqId, "order", pp.PrettyFormat(cancelOrderMsg))
+	return m.WSManager.SendRequest(cancelOrderMsg)
 }
 
 func (m *TradeWSBybit) AmendOrder(params AmendOrderParams) error {
-	if err := m.ensureConnected(); err != nil {
-		return err
-	}
 	reqId := m.getReqId("order.amend")
-	placeOrderMsg := AmendOrderWsSchema{
+	amendOrderMsg := AmendOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),
 		Op:     "order.amend",
 		Args:   []AmendOrderParams{params},
 	}
-	m.api.Logger.Debug("Amending order", "reqId", reqId, "order", pp.PrettyFormat(placeOrderMsg))
-	return m.getConn().WriteJSON(placeOrderMsg)
+	m.Logger.Debug("Amending order", "reqId", reqId, "order", pp.PrettyFormat(amendOrderMsg))
+	return m.WSManager.SendRequest(amendOrderMsg)
 }
