@@ -54,7 +54,7 @@ type AmendOrderWsSchema struct {
 }
 
 func (m *TradeWSBybit) PlaceOrder(params PlaceOrderParams) (string, error) {
-	reqId := m.getReqId("order.create")
+	reqId := m.GetReqId("order.create")
 	placeOrderMsg := PlaceOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),
@@ -66,7 +66,7 @@ func (m *TradeWSBybit) PlaceOrder(params PlaceOrderParams) (string, error) {
 }
 
 func (m *TradeWSBybit) CancelOrder(params CancelOrderParams) error {
-	reqId := m.getReqId("order.cancel")
+	reqId := m.GetReqId("order.cancel")
 	cancelOrderMsg := CancelOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),
@@ -78,7 +78,7 @@ func (m *TradeWSBybit) CancelOrder(params CancelOrderParams) error {
 }
 
 func (m *TradeWSBybit) AmendOrder(params AmendOrderParams) error {
-	reqId := m.getReqId("order.amend")
+	reqId := m.GetReqId("order.amend")
 	amendOrderMsg := AmendOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),
