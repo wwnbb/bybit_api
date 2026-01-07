@@ -47,7 +47,7 @@ type WSBybit struct {
 	DataCh chan WsMsg
 }
 
-func (m *WSBybit) getReqId(topic string) string {
+func (m *WSBybit) GetReqId(topic string) string {
 	if n, exist := m.requestIds.Get(topic); exist {
 		id := n.(int) + 1
 		m.requestIds.Set(topic, id)
@@ -147,7 +147,7 @@ func (m *WSBybit) sendAuth() error {
 	m.Logger.Debug("auth args", "apiKey", m.authCredentials.ApiKey, "expires", expires, "signature", signature)
 
 	authMessage := map[string]interface{}{
-		"req_id": m.getReqId("auth"),
+		"req_id": m.GetReqId("auth"),
 		"op":     "auth",
 		"args":   []interface{}{m.authCredentials.ApiKey, expires, signature},
 	}
@@ -284,7 +284,7 @@ func (m *WSBybit) serializeWsResponse(topic, op string, data []byte) (interface{
 func (m *WSBybit) sendSubscribe(topic string) error {
 	m.Logger.Debug("Subscribing", "topic", topic)
 	return m.WSManager.SendRequest(map[string]interface{}{
-		"req_id": m.getReqId("subscribe"),
+		"req_id": m.GetReqId("subscribe"),
 		"op":     "subscribe",
 		"args":   []string{topic},
 	})
@@ -292,7 +292,7 @@ func (m *WSBybit) sendSubscribe(topic string) error {
 
 func (m *WSBybit) sendUnsubscribe(topic string) error {
 	return m.WSManager.SendRequest(map[string]interface{}{
-		"req_id": m.getReqId("unsubscribe"),
+		"req_id": m.GetReqId("unsubscribe"),
 		"op":     "unsubscribe",
 		"args":   []string{topic},
 	})

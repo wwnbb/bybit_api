@@ -20,5 +20,3 @@ require (
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dchest/siphash v1.2.3 // indirect
 )
-
-replace github.com/wwnbb/wsmanager => ../wsmanager

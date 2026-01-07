@@ -25,11 +25,19 @@ func TestWsPlaceOrder(t *testing.T) {
 	fmt.Printf("Executing order at: %v\n", executeTime.Format("15:04:05.000"))
 
 	params := PlaceOrderParams{
-		Symbol:    "ZBTUSDT",
-		Side:      "Sell",
-		OrderType: "Market",
-		Qty:       "49",
-		Category:  "linear",
+		Symbol:           "ANIMEUSDT",
+		Side:             "Sell",
+		OrderType:        "Limit",
+		Qty:              "9000",
+		Category:         "linear",
+		Price:            ptr.Ptr("0.007743"),
+		TriggerDirection: ptr.Ptr(2),
+		TriggerPrice:     ptr.Ptr("0.007833"),
+		TriggerBy:        ptr.Ptr("LastPrice"),
+		TakeProfit:       ptr.Ptr("0.007800"),
+		TpOrderType:      ptr.Ptr("Limit"),
+		TpLimitPrice:     ptr.Ptr("0.007703"),
+		TpslMode:         ptr.Ptr("Partial"),
 	}
 	val, err := api.Trade.PlaceOrder(params)
 	fmt.Printf("Order Req ID: %s, Error: %v\n", val, err)

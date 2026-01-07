@@ -35,18 +35,18 @@ func TestGetReqId(t *testing.T) {
 	api := GetApi()
 
 	wsm := newWSBybit(api, WS_LINEAR, TESTNET_SPOT_WS)
-	reqId := wsm.getReqId("subscribe")
+	reqId := wsm.GetReqId("subscribe")
 	if reqId == "" {
 		t.Errorf("Error: reqId is empty")
 	}
 	if reqId != "subscribe_1" {
 		t.Errorf("Error: wrong reqId")
 	}
-	reqId = wsm.getReqId("unsubscribe")
+	reqId = wsm.GetReqId("unsubscribe")
 	if reqId != "unsubscribe_1" {
 		t.Errorf("Error: wrong reqId")
 	}
-	reqId = wsm.getReqId("subscribe")
+	reqId = wsm.GetReqId("subscribe")
 	if reqId != "subscribe_2" {
 		t.Errorf("Error: wrong reqId")
 	}
