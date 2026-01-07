@@ -86,9 +86,10 @@ func (m *WSBybit) processMessages() {
 		case <-m.api.context.Done():
 			return
 		case rawMsg := <-m.WSManager.DataCh:
-			msgMap, ok := rawMsg.(map[string]interface{})
-			if !ok {
-				m.Logger.Error("failed to cast message to map")
+			// rawMsg is now json.RawMessage ([]byte), unmarshal it to extract topic and op
+			var msgMap map[string]interface{}
+			if err := json.Unmarshal(rawMsg, &msgMap); err != nil {
+				m.Logger.Error("failed to unmarshal message", "error", err)
 				continue
 			}
 
@@ -105,13 +106,8 @@ func (m *WSBybit) processMessages() {
 				continue
 			}
 
-			rawData, err := json.Marshal(rawMsg)
-			if err != nil {
-				m.Logger.Error("failed to marshal raw message", "error", err)
-				continue
-			}
-
-			serialized, err := m.serializeWsResponse(topic, op, rawData)
+			// rawMsg is already raw JSON bytes, use it directly
+			serialized, err := m.serializeWsResponse(topic, op, rawMsg)
 			if err != nil {
 				m.Logger.Error("failed to serialize message", "error", err, "topic", topic, "op", op)
 				continue

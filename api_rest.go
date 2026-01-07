@@ -13,7 +13,6 @@ import (
 
 	json "github.com/goccy/go-json"
 	"github.com/gorilla/schema"
-	pp "github.com/wwnbb/pprint"
 )
 
 type RESTManager struct {
@@ -551,7 +550,6 @@ func (r *RESTManager) GetOrderRealTime(params OrderRealtimeRequest) (interface{}
 	if err := r.sendRequest(req, &result); err != nil {
 		return nil, fmt.Errorf("failed to get position data: %w", err)
 	}
-	pp.PrettyPrint(result)
 
 	return result, nil
 }

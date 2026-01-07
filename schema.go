@@ -282,6 +282,22 @@ type OrderWebsocketAmendResponse struct {
 	RetMsg     string                 `json:"retMsg"`
 }
 
+type OrderWebsocketBatchCreateResponse struct {
+	ConnId string            `json:"connId"`
+	Data   BatchPlaceOrderResponse `json:"data"`
+	Header map[string]string `json:"header"`
+	Op     string            `json:"op"`
+	ReqId  string            `json:"reqId"`
+	RetCode int              `json:"retCode"`
+	RetExtInfo struct {
+		List []struct {
+			Code int    `json:"code"`
+			Msg  string `json:"msg"`
+		} `json:"list"`
+	} `json:"retExtInfo"`
+	RetMsg string `json:"retMsg"`
+}
+
 type PublicTradeWebsocketResponse struct {
 	Topic string            `json:"topic"`
 	Type  string            `json:"type"`
@@ -871,3 +887,421 @@ type SetLeverageParams struct {
 type SetLeverageResponse struct {
 	BaseResponse
 }
+
+// Batch Place Order
+// https://bybit-exchange.github.io/docs/v5/order/batch-place
+type BatchOrderItem struct {
+	Symbol           string      `json:"symbol"`
+	IsLeverage       *int        `json:"isLeverage,omitempty"`
+	Side             string      `json:"side"`
+	OrderType        string      `json:"orderType"`
+	Qty              string      `json:"qty"`
+	MarketUnit       *MarketUnit `json:"marketUnit,omitempty"`
+	Price            *string     `json:"price,omitempty"`
+	TriggerDirection *int        `json:"triggerDirection,omitempty"`
+	OrderFilter      *string     `json:"orderFilter,omitempty"`
+	TriggerPrice     *string     `json:"triggerPrice,omitempty"`
+	TriggerBy        *string     `json:"triggerBy,omitempty"`
+	OrderIv          *string     `json:"orderIv,omitempty"`
+	TimeInForce      *string     `json:"timeInForce,omitempty"`
+	PositionIdx      *int        `json:"positionIdx,omitempty"`
+	OrderLinkId      *string     `json:"orderLinkId,omitempty"`
+	TakeProfit       *string     `json:"takeProfit,omitempty"`
+	StopLoss         *string     `json:"stopLoss,omitempty"`
+	TpTriggerBy      *string     `json:"tpTriggerBy,omitempty"`
+	SlTriggerBy      *string     `json:"slTriggerBy,omitempty"`
+	ReduceOnly       *bool       `json:"reduceOnly,omitempty"`
+	CloseOnTrigger   *bool       `json:"closeOnTrigger,omitempty"`
+	SmpType          *string     `json:"smpType,omitempty"`
+	Mmp              *bool       `json:"mmp,omitempty"`
+	TpslMode         *string     `json:"tpslMode,omitempty"`
+	TpLimitPrice     *string     `json:"tpLimitPrice,omitempty"`
+	SlLimitPrice     *string     `json:"slLimitPrice,omitempty"`
+	TpOrderType      *string     `json:"tpOrderType,omitempty"`
+	SlOrderType      *string     `json:"slOrderType,omitempty"`
+}
+
+type BatchPlaceOrderParams struct {
+	Category string           `json:"category"`
+	Request  []BatchOrderItem `json:"request"`
+}
+
+type BatchPlaceOrderResponse struct {
+	BaseResponse
+	Result struct {
+		List []struct {
+			Category    string `json:"category"`
+			Symbol      string `json:"symbol"`
+			OrderId     string `json:"orderId"`
+			OrderLinkId string `json:"orderLinkId"`
+			CreateAt    string `json:"createAt"`
+		} `json:"list"`
+	} `json:"result"`
+	RetExtInfo struct {
+		List []struct {
+			Code int    `json:"code"`
+			Msg  string `json:"msg"`
+		} `json:"list"`
+	} `json:"retExtInfo"`
+}
+
+// Batch operations
+// Request Parameters
+// Parameter	Required	Type	Comments
+// category	true	string	Product type linear, option, spot, inverse
+// request	true	array	Object
+// > symbol	true	string	Symbol name, like BTCUSDT, uppercase only
+// > isLeverage	false	integer	Whether to borrow, spot** only. 0(default): false then spot trading, 1: true then margin trading
+// > side	true	string	Buy, Sell
+// > orderType	true	string	Market, Limit
+// > qty	true	string	Order quantity
+//
+//     Spot: set marketUnit for market order qty unit, quoteCoin for market buy by default, baseCoin for market sell by default
+//     Perps, Futures & Option: always use base coin as unit.
+//     Perps & Futures: If you pass qty="0" and specify reduceOnly=true&closeOnTrigger=true, you can close the position up to maxMktOrderQty or maxOrderQty shown on Get Instruments Info of current symbol
+//
+// > marketUnit	false	string	The unit for qty when create Spot market orders, orderFilter="tpslOrder" and "StopOrder" are supported as well.
+// baseCoin: for example, buy BTCUSDT, then "qty" unit is BTC
+// quoteCoin: for example, sell BTCUSDT, then "qty" unit is USDT
+// > price	false	string	Order price
+//
+//     Market order will ignore this field
+//     Please check the min price and price precision from instrument info endpoint
+//     If you have position, price needs to be better than liquidation price
+//
+// > triggerDirection	false	integer	Conditional order param. Used to identify the expected direction of the conditional order.
+//
+//     1: triggered when market price rises to triggerPrice
+//     2: triggered when market price falls to triggerPrice
+//
+// Valid for linear
+// > orderFilter	false	string	If it is not passed, Order by default.
+//
+//     Order
+//     tpslOrder: Spot TP/SL order, the assets are occupied even before the order is triggered
+//     StopOrder: Spot conditional order, the assets will not be occupied until the price of the underlying asset reaches the trigger price, and the required assets will be occupied after the Conditional order is triggered
+//
+// Valid for spot only
+// > triggerPrice	false	string
+//
+//     For Perps & Futures, it is the conditional order trigger price. If you expect the price to rise to trigger your conditional order, make sure:
+//     triggerPrice > market price
+//     Else, triggerPrice < market price
+//     For spot, it is the orderFilter="tpslOrder", or "StopOrder" trigger price
+//
+// > triggerBy	false	string	Conditional order param (Perps & Futures). Trigger price type. LastPrice, IndexPrice, MarkPrice
+// > orderIv	false	string	Implied volatility. option only. Pass the real value, e.g for 10%, 0.1 should be passed. orderIv has a higher priority when price is passed as well
+// > timeInForce	false	string	Time in force
+//
+//     Market order will use IOC directly
+//     If not passed, GTC is used by default
+//
+// > positionIdx	false	integer	Used to identify positions in different position modes. Under hedge-mode, this param is required
+//
+//     0: one-way mode
+//     1: hedge-mode Buy side
+//     2: hedge-mode Sell side
+//
+// > orderLinkId	false	string	User customised order ID. A max of 36 characters. Combinations of numbers, letters (upper and lower cases), dashes, and underscores are supported.
+// Futures, Perps & Spot: orderLinkId rules:
+//
+//     optional param
+//     always unique
+//     option orderLinkId rules:
+//     required param
+//     always unique
+//
+// > takeProfit	false	string	Take profit price
+// > stopLoss	false	string	Stop loss price
+// > tpTriggerBy	false	string	The price type to trigger take profit. MarkPrice, IndexPrice, default: LastPrice.
+// Valid for linear, inverse
+// > slTriggerBy	false	string	The price type to trigger stop loss. MarkPrice, IndexPrice, default: LastPrice
+// Valid for linear, inverse
+// > reduceOnly	false	boolean	What is a reduce-only order? true means your position can only reduce in size if this order is triggered.
+//
+//     You must specify it as true when you are about to close/reduce the position
+//     When reduceOnly is true, take profit/stop loss cannot be set
+//
+// Valid for linear, inverse & option
+// > closeOnTrigger	false	boolean	What is a close on trigger order? For a closing order. It can only reduce your position, not increase it. If the account has insufficient available balance when the closing order is triggered, then other active orders of similar contracts will be cancelled or reduced. It can be used to ensure your stop loss reduces your position regardless of current available margin.
+// Valid for linear, inverse
+// > smpType	false	string	Smp execution type. What is SMP?
+// > mmp	false	boolean	Market maker protection. option only. true means set the order as a market maker protection order. What is mmp?
+// > tpslMode	false	string	TP/SL mode
+//
+//     Full: entire position for TP/SL. Then, tpOrderType or slOrderType must be Market
+//     Partial: partial position tp/sl (as there is no size option, so it will create tp/sl orders with the qty you actually fill). Limit TP/SL order are supported. Note: When create limit tp/sl, tpslMode is required and it must be Partial
+//
+// Valid for linear, inverse
+// > tpLimitPrice	false	string	The limit order price when take profit price is triggered
+//
+//     linear&inverse: only works when tpslMode=Partial and tpOrderType=Limit
+//     Spot: it is required when the order has takeProfit and tpOrderType=Limit
+//
+// > slLimitPrice	false	string	The limit order price when stop loss price is triggered
+//
+//     linear&inverse: only works when tpslMode=Partial and slOrderType=Limit
+//     Spot: it is required when the order has stopLoss and slOrderType=Limit
+//
+// > tpOrderType	false	string	The order type when take profit is triggered
+//
+//     linear&inverse: Market(default), Limit. For tpslMode=Full, it only supports tpOrderType=Market
+//     Spot:
+//     Market: when you set "takeProfit",
+//     Limit: when you set "takeProfit" and "tpLimitPrice"
+//
+// > slOrderType	false	string	The order type when stop loss is triggered
+//
+//     linear&inverse: Market(default), Limit. For tpslMode=Full, it only supports slOrderType=Market
+//     Spot:
+//     Market: when you set "stopLoss",
+//     Limit: when you set "stopLoss" and "slLimitPrice"
+//
+// Response Parameters
+// Parameter	Type	Comments
+// result	Object
+// > list	array	Object
+// >> category	string	Product type
+// >> symbol	string	Symbol name
+// >> orderId	string	Order ID
+// >> orderLinkId	string	User customised order ID
+// >> createAt	string	Order created time (ms)
+// retExtInfo	Object
+// > list	array	Object
+// >> code	number	Success/error code
+// >> msg	string	Success/error message
+// info
+//
+// The acknowledgement of an place order request indicates that the request was sucessfully accepted. This request is asynchronous so please use the websocket to confirm the order status.
+// import (
+//     "context"
+//     "fmt"
+//     bybit "https://github.com/bybit-exchange/bybit.go.api")
+// client := bybit.NewBybitHttpClient("YOUR_API_KEY", "YOUR_API_SECRET", bybit.WithBaseURL(bybit.TESTNET))
+// params := map[string]interface{}{"category": "option",
+//     "request": []map[string]interface{}{
+//         {
+//             "category":    "option",
+//             "symbol":      "BTC-10FEB23-24000-C",
+//             "orderType":   "Limit",
+//             "side":        "Buy",
+//             "qty":         "0.1",
+//             "price":       "5",
+//             "orderIv":     "0.1",
+//             "timeInForce": "GTC",
+//             "orderLinkId": "9b381bb1-401",
+//             "mmp":         false,
+//             "reduceOnly":  false,
+//         },
+//         {
+//             "category":    "option",
+//             "symbol":      "BTC-10FEB23-24000-C",
+//             "orderType":   "Limit",
+//             "side":        "Buy",
+//             "qty":         "0.1",
+//             "price":       "5",
+//             "orderIv":     "0.1",
+//             "timeInForce": "GTC",
+//             "orderLinkId": "82ee86dd-001",
+//             "mmp":         false,
+//             "reduceOnly":  false,
+//         },
+//     },
+// }
+// client.NewUtaBybitServiceWithParams(params).PlaceBatchOrder(context.Background())
+// {
+//     "retCode": 0,
+//     "retMsg": "OK",
+//     "result": {
+//         "list": [
+//             {
+//                 "category": "spot",
+//                 "symbol": "BTCUSDT",
+//                 "orderId": "1666800494330512128",
+//                 "orderLinkId": "spot-btc-03",
+//                 "createAt": "1713434102752"
+//             },
+//             {
+//                 "category": "spot",
+//                 "symbol": "ATOMUSDT",
+//                 "orderId": "1666800494330512129",
+//                 "orderLinkId": "spot-atom-03",
+//                 "createAt": "1713434102752"
+//             }
+//         ]
+//     },
+//     "retExtInfo": {
+//         "list": [
+//             {
+//                 "code": 0,
+//                 "msg": "OK"
+//             },
+//             {
+//                 "code": 0,
+//                 "msg": "OK"
+//             }
+//         ]
+//     },
+//     "time": 1713434102753
+// }
+// Batch Create/Amend/Cancel Order
+// info
+//
+//     A maximum of 20 orders (option), 20 orders (inverse), 20 orders (linear), 10 orders (spot) can be placed per request. The returned data list is divided into two lists. The first list indicates whether or not the order creation was successful and the second list details the created order information. The structure of the two lists are completely consistent.
+//
+//     Option rate limt instruction: its rate limit is count based on the actual number of request sent, e.g., by default, option trading rate limit is 10 reqs per sec, so you can send up to 20 * 10 = 200 orders in one second.
+//     Perpetual, Futures, Spot rate limit instruction, please check here
+//
+//     The account rate limit is shared between websocket and http batch orders
+//     The acknowledgement of batch create/amend/cancel order requests indicates that the request was sucessfully accepted. The request is asynchronous so please use the websocket to confirm the order status.
+//
+// Request Parameters
+// Parameter	Required	Type	Comments
+// reqId	false	string	Used to identify the uniqueness of the request, the response will return it when passed. The length cannot exceed 36 characters.
+// If passed, it can't be duplicated, otherwise you will get "20006"
+// header	true	object	Request headers
+// > X-BAPI-TIMESTAMP	true	string	Current timestamp
+// > X-BAPI-RECV-WINDOW	false	string	5000(ms) by default. Request will be rejected when not satisfy this rule: Bybit_server_time - X-BAPI-RECV-WINDOW <= X-BAPI-TIMESTAMP < Bybit_server_time + 1000
+// > Referer	false	string	The referer identifier for API broker user
+// op	true	string	Op type
+// order.create-batch: batch create orders
+// order.amend-batch: batch amend orders
+// order.cancel-batch: batch cancel orders
+// args	true	array<object>	Args array
+// order.create-batch: refer to Batch Place Order request
+// order.amend-batch: refer to Batch Amend Order request
+// order.cancel-batch: refer to Batch Cancel Order request
+// Response Parameters
+// Parameter	Type	Comments
+// reqId	string
+// If it is passed on the request, then it is returned in the response
+// If it is not passed, then it is not returned in the response
+// retCode	integer
+// 0: success
+// 10403: exceed IP rate limit. 3000 requests per second per IP
+// 10404: 1. op type is not found; 2. category is not correct/supported
+// 10429: System level frequency protection
+// 20006: reqId is duplicated
+// 10016: 1. internal server error; 2. Service is restarting
+// 10019: ws trade service is restarting, do not accept new request, but the request in the process is not affected. You can build new connection to be routed to normal service
+// retMsg	string
+// OK
+// ""
+// Error message
+// op	string	Op type
+// data	object	Business data, keep the same as result on rest api response
+// order.create-batch: refer to Batch Place Order response
+// order.amend-batch: refer to Batch Amend Order response
+// order.cancel-batch: refer to Batch Cancel Order response
+// retExtInfo	object
+// > list	array<object>
+// >> code	number	Success/error code
+// >> msg	string	Success/error message
+// header	object	Header info
+// > TraceId	string	Trace ID, used to track the trip of request
+// > Timenow	string	Current timestamp
+// > X-Bapi-Limit	string	The total rate limit of the current account for this op type
+// > X-Bapi-Limit-Status	string	The remaining rate limit of the current account for this op type
+// > X-Bapi-Limit-Reset-Timestamp	string	The timestamp indicates when your request limit resets if you have exceeded your rate limit. Otherwise, this is just the current timestamp (it may not exactly match timeNow)
+// connId	string	Connection id, the unique id for the connection
+// Request Example
+//
+//
+// {
+//     "op": "order.create-batch",
+//     "header": {
+//         "X-BAPI-TIMESTAMP": "1740453381256",
+//         "X-BAPI-RECV-WINDOW": "1000"
+//     },
+//     "args": [
+//         {
+//             "category": "linear",
+//             "request": [
+//                 {
+//                     "symbol": "SOLUSDT",
+//                     "qty": "10",
+//                     "price": "500",
+//                     "orderType": "Limit",
+//                     "timeInForce": "GTC",
+//                     "orderLinkId": "-batch-000",
+//                     "side": "Buy"
+//                 },
+//                 {
+//                     "symbol": "SOLUSDT",
+//                     "qty": "20",
+//                     "price": "1000",
+//                     "orderType": "Limit",
+//                     "timeInForce": "GTC",
+//                     "orderLinkId": "batch-001",
+//                     "side": "Buy"
+//                 },
+//                 {
+//                     "symbol": "SOLUSDT",
+//                     "qty": "30",
+//                     "price": "1500",
+//                     "orderType": "Limit",
+//                     "timeInForce": "GTC",
+//                     "orderLinkId": "batch-002",
+//                     "side": "Buy"
+//                 }
+//             ]
+//         }
+//     ]
+// }
+//
+// Response Example
+//
+// {
+//     "retCode": 0,
+//     "retMsg": "OK",
+//     "op": "order.create-batch",
+//     "data": {
+//         "list": [
+//             {
+//                 "category": "linear",
+//                 "symbol": "SOLUSDT",
+//                 "orderId": "",
+//                 "orderLinkId": "batch-000",
+//                 "createAt": ""
+//             },
+//             {
+//                 "category": "linear",
+//                 "symbol": "SOLUSDT",
+//                 "orderId": "",
+//                 "orderLinkId": "batch-001",
+//                 "createAt": ""
+//             },
+//             {
+//                 "category": "linear",
+//                 "symbol": "SOLUSDT",
+//                 "orderId": "",
+//                 "orderLinkId": "batch-002",
+//                 "createAt": ""
+//             }
+//         ]
+//     },
+//     "retExtInfo": {
+//         "list": [
+//             {
+//                 "code": 10001,
+//                 "msg": "position idx not match position mode"
+//             },
+//             {
+//                 "code": 10001,
+//                 "msg": "position idx not match position mode"
+//             },
+//             {
+//                 "code": 10001,
+//                 "msg": "position idx not match position mode"
+//             }
+//         ]
+//     },
+//     "header": {
+//         "Timenow": "1740453408556",
+//         "X-Bapi-Limit": "150",
+//         "X-Bapi-Limit-Status": "147",
+//         "X-Bapi-Limit-Reset-Timestamp": "1740453408555",
+//         "Traceid": "0e32b551b3e17aae77651aadf6a5be80"
+//     },
+//     "connId": "cupviqn88smf24t2kpb0-536o"
+// }

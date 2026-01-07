@@ -1,6 +1,7 @@
 package bybit_api
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
@@ -115,9 +116,14 @@ func TestWsSubscribeUnsubscribe(t *testing.T) {
 
 func TestWsManagerTradeSubscribe(t *testing.T) {
 	api := GetApi()
-	api.Spot.Subscribe("publicTrade.BTCUSDT")
+	api.Spot.Connect()
+	err := api.Spot.Subscribe("publicTrade.BTCUSDT")
+	if err != nil {
+		t.Fatalf("Could not subscribe to publicTrade channel: %v", err)
+	}
 	for i := 0; i < 10; i++ {
-		fmt.Println(<-api.Spot.DataCh)
+		msg := <-api.Spot.DataCh
+		fmt.Printf("\n%s\n", pp.PrettyFormat(msg.Data))
 	}
 	api.Spot.Unsubscribe("publicTrade.BTCUSDT")
 }

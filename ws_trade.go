@@ -53,6 +53,13 @@ type AmendOrderWsSchema struct {
 	Args   []AmendOrderParams `json:"args"`
 }
 
+type BatchPlaceOrderWsSchema struct {
+	ReqId  string                  `json:"reqId"`
+	Header HeaderData              `json:"header"`
+	Op     string                  `json:"op"`
+	Args   []BatchPlaceOrderParams `json:"args"`
+}
+
 func (m *TradeWSBybit) PlaceOrder(params PlaceOrderParams) (string, error) {
 	reqId := m.getReqId("order.create")
 	placeOrderMsg := PlaceOrderWsSchema{
@@ -87,4 +94,16 @@ func (m *TradeWSBybit) AmendOrder(params AmendOrderParams) error {
 	}
 	m.Logger.Debug("Amending order", "reqId", reqId, "order", pp.PrettyFormat(amendOrderMsg))
 	return m.WSManager.SendRequest(amendOrderMsg)
+}
+
+func (m *TradeWSBybit) BatchPlaceOrder(params BatchPlaceOrderParams) (string, error) {
+	reqId := m.getReqId("order.create-batch")
+	batchPlaceOrderMsg := BatchPlaceOrderWsSchema{
+		ReqId:  reqId,
+		Header: GenerateAPIHeaders(),
+		Op:     "order.create-batch",
+		Args:   []BatchPlaceOrderParams{params},
+	}
+	m.Logger.Debug("Placing batch orders", "reqId", reqId, "order", pp.PrettyFormat(batchPlaceOrderMsg))
+	return reqId, m.WSManager.SendRequest(batchPlaceOrderMsg)
 }

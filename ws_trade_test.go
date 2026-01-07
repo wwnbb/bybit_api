@@ -37,6 +37,32 @@ func TestWsPlaceOrder(t *testing.T) {
 	time.Sleep(15 * time.Second)
 }
 
+func TestWsBatchPlaceOrder(t *testing.T) {
+	api := GetApi()
+	api.ConfigureMainNetUrls()
+	api.Trade.Connect()
+
+	go func() {
+		for {
+			pp.PrettyPrint(<-api.Trade.DataCh)
+		}
+	}()
+	executeTime := time.Now()
+	fmt.Printf("Executing order at: %v\n", executeTime.Format("15:04:05.000"))
+
+	params := BatchPlaceOrderParams{
+		Category: "linear",
+		Request: []BatchOrderItem{
+			{Symbol: "LUNA2USDT", Side: "Sell", OrderType: "Market", Qty: "40"},
+			{Symbol: "LUNA2USDT", Side: "Sell", OrderType: "Market", Qty: "60"},
+		},
+	}
+	val, err := api.Trade.BatchPlaceOrder(params)
+	fmt.Printf("Order Req ID: %s, Error: %v\n", val, err)
+
+	time.Sleep(15 * time.Second)
+}
+
 func TestGetOrderRealTime(t *testing.T) {
 	api := GetApi()
 	val, err := api.REST.GetOrderRealTime(
