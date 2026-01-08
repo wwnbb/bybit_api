@@ -11,7 +11,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/wwnbb/pprint v0.0.4
 	github.com/wwnbb/ptr v1.0.2
-	github.com/wwnbb/wsmanager v0.0.0-20251219042404-15bcad749948
+	github.com/wwnbb/wsmanager v0.0.0-20260107202624-f722b603ac66
 )
 
 require (

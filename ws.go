@@ -86,42 +86,33 @@ func (m *WSBybit) processMessages() {
 		case <-m.api.context.Done():
 			return
 		case rawMsg := <-m.WSManager.DataCh:
-			// rawMsg is now json.RawMessage ([]byte), unmarshal it to extract topic and op
-			var msgMap map[string]interface{}
-			if err := json.Unmarshal(rawMsg.(json.RawMessage), &msgMap); err != nil {
-				m.Logger.Error("failed to unmarshal message", "error", err)
+			// Extract topic and op fields without using interface{}
+			var header ResponseHeader
+			if err := json.Unmarshal(rawMsg, &header); err != nil {
+				m.Logger.Error("failed to unmarshal message header", "error", err)
 				continue
 			}
 
-			topic := ""
-			op := ""
-			if t, ok := msgMap["topic"].(string); ok {
-				topic = t
-			}
-			if o, ok := msgMap["op"].(string); ok {
-				op = o
-			}
-
-			if op == "ping" || op == "pong" {
+			if header.Op == "ping" || header.Op == "pong" {
 				continue
 			}
 
 			// rawMsg is already raw JSON bytes, use it directly
-			serialized, err := m.serializeWsResponse(topic, op, rawMsg.(json.RawMessage))
+			serialized, err := m.serializeWsResponse(header.Topic, header.Op, rawMsg)
 			if err != nil {
-				m.Logger.Error("failed to serialize message", "error", err, "topic", topic, "op", op)
+				m.Logger.Error("failed to serialize message", "error", err, "topic", header.Topic, "op", header.Op)
 				continue
 			}
 
 			msg := WsMsg{
-				Topic: topic,
-				Op:    op,
+				Topic: header.Topic,
+				Op:    header.Op,
 				Data:  serialized,
 			}
 
 			select {
 			case m.DataCh <- msg:
-				m.Logger.Debug("processed message", "topic", topic, "op", op, "data", pp.PrettyFormat(serialized))
+				m.Logger.Debug("processed message", "topic", header.Topic, "op", header.Op, "data", pp.PrettyFormat(serialized))
 			default:
 				m.Logger.Error("message buffer full, dropping message")
 			}
