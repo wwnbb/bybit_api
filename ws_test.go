@@ -1,7 +1,6 @@
 package bybit_api
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"

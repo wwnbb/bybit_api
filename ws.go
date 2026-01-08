@@ -88,7 +88,7 @@ func (m *WSBybit) processMessages() {
 		case rawMsg := <-m.WSManager.DataCh:
 			// rawMsg is now json.RawMessage ([]byte), unmarshal it to extract topic and op
 			var msgMap map[string]interface{}
-			if err := json.Unmarshal(rawMsg, &msgMap); err != nil {
+			if err := json.Unmarshal(rawMsg.(json.RawMessage), &msgMap); err != nil {
 				m.Logger.Error("failed to unmarshal message", "error", err)
 				continue
 			}
@@ -107,7 +107,7 @@ func (m *WSBybit) processMessages() {
 			}
 
 			// rawMsg is already raw JSON bytes, use it directly
-			serialized, err := m.serializeWsResponse(topic, op, rawMsg)
+			serialized, err := m.serializeWsResponse(topic, op, rawMsg.(json.RawMessage))
 			if err != nil {
 				m.Logger.Error("failed to serialize message", "error", err, "topic", topic, "op", op)
 				continue

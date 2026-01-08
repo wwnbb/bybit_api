@@ -97,7 +97,7 @@ func (m *TradeWSBybit) AmendOrder(params AmendOrderParams) error {
 }
 
 func (m *TradeWSBybit) BatchPlaceOrder(params BatchPlaceOrderParams) (string, error) {
-	reqId := m.getReqId("order.create-batch")
+	reqId := m.GetReqId("order.create-batch")
 	batchPlaceOrderMsg := BatchPlaceOrderWsSchema{
 		ReqId:  reqId,
 		Header: GenerateAPIHeaders(),

@@ -1,8 +1,6 @@
 module github.com/wwnbb/bybit_api
 
-go 1.23
-
-toolchain go1.24.7
+go 1.25.5
 
 require (
 	github.com/dustinxie/lockfree v0.0.0-20210712051436-ed0ed42fd0d6
